@@ -26,13 +26,15 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # Flutter necesita las librerías de desarrollo de GTK3 para compilar
-      # el target de escritorio Linux — no viene preinstalado en el runner.
+      # Flutter necesita GTK3 para compilar el target de escritorio Linux, y
+      # el plugin flutter_secure_storage (usado por SecureStorage acá) pide
+      # libsecret (keyring de GNOME) en su versión Linux — ninguno de los
+      # dos viene preinstalado en el runner.
       - name: Instalar dependencias de Flutter para Linux desktop
         if: matrix.target == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libsecret-1-dev libjsoncpp-dev
 
       - uses: astral-sh/setup-uv@v5
         with:

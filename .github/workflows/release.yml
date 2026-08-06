@@ -1,0 +1,112 @@
+name: Release
+
+# Se dispara al pushear un tag "v*" (ej. v0.2.0). BACKEND_URL se toma de un
+# secret del repo (Settings > Secrets and variables > Actions) y se escribe
+# a un .env antes de cada build — core/config.py lo lee con python-dotenv
+# igual que en desarrollo, así que no hace falta tocar código para esto.
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-linux-web-android:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [linux, web, apk]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        if: matrix.target == 'apk'
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+
+      - run: uv sync
+
+      - name: Escribir .env con el backend de producción
+        run: echo "BACKEND_URL=${{ secrets.BACKEND_URL }}" > .env
+
+      - run: uv run flet build ${{ matrix.target }} --yes
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fractall-${{ matrix.target }}
+          path: build/${{ matrix.target }}
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+
+      - run: uv sync
+
+      - name: Escribir .env con el backend de producción
+        run: echo "BACKEND_URL=${{ secrets.BACKEND_URL }}" > .env
+
+      - run: uv run flet build windows --yes
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fractall-windows
+          path: build/windows
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+
+      - run: uv sync
+
+      - name: Escribir .env con el backend de producción
+        run: echo "BACKEND_URL=${{ secrets.BACKEND_URL }}" > .env
+
+      - run: uv run flet build macos --yes
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fractall-macos
+          path: build/macos
+
+  release:
+    needs: [build-linux-web-android, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Comprimir cada build
+        run: |
+          cd artifacts
+          for dir in */; do
+            nombre="${dir%/}"
+            zip -r "../${nombre}.zip" "$nombre"
+          done
+
+      - name: Crear GitHub Release con todos los paquetes adjuntos
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" ./*.zip \
+            --title "${{ github.ref_name }}" \
+            --generate-notes

@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         target: [linux, web, apk]
     steps:
@@ -53,6 +54,7 @@ jobs:
           path: build/${{ matrix.target }}
 
   build-windows:
+    needs: build-linux-web-android
     runs-on: windows-latest
     env:
       # Sin esto, la consola de Windows usa cp1252 por defecto y flet build
@@ -79,6 +81,7 @@ jobs:
           path: build/windows
 
   build-macos:
+    needs: build-windows
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4

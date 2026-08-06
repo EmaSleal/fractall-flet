@@ -26,6 +26,14 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # Flutter necesita las librerías de desarrollo de GTK3 para compilar
+      # el target de escritorio Linux — no viene preinstalado en el runner.
+      - name: Instalar dependencias de Flutter para Linux desktop
+        if: matrix.target == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.11"
@@ -44,6 +52,11 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
+    env:
+      # Sin esto, la consola de Windows usa cp1252 por defecto y flet build
+      # (que imprime emojis de progreso vía `rich`) revienta con
+      # UnicodeEncodeError al intentar mostrar el primer ✅.
+      PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
 

@@ -1,3 +1,5 @@
+import traceback
+
 import flet as ft
 
 import estado_navegacion
@@ -44,36 +46,56 @@ def vista_login(page: ft.Page) -> ft.View:
         boton_ingresar.content = "Ingresando..."
         page.update()
 
-        resultado = await login(email, password)
+        # Todo el cuerpo va en un único try/except: Flet no imprime nada por
+        # consola cuando una excepción no atajada corta una corrutina de
+        # evento en el build empaquetado (confirmado con el fallo de
+        # guardar_tokens), así que sin esto cualquier excepción acá deja al
+        # usuario pegado en /login sin ningún rastro de qué pasó. El
+        # traceback explícito es lo único que nos deja ver el error real.
+        try:
+            resultado = await login(email, password)
 
-        boton_ingresar.disabled = False
-        boton_ingresar.content = "Ingresar"
+            boton_ingresar.disabled = False
+            boton_ingresar.content = "Ingresar"
 
-        if isinstance(resultado, ApiFallo):
-            mostrar_error(resultado.error.mensaje)
-            return
+            if isinstance(resultado, ApiFallo):
+                mostrar_error(resultado.error.mensaje)
+                return
 
-        caso = resultado.datos
+            caso = resultado.datos
 
-        if isinstance(caso, AccessToken):
-            await sesion.guardar_tokens(caso.access_token, caso.refresh_token)
-            await sesion.guardar_empresa_activa(caso.empresa_id)
-            page.navigate(rutas.DASHBOARD)
-            return
+            if isinstance(caso, AccessToken):
+                await sesion.guardar_tokens(caso.access_token, caso.refresh_token)
+                await sesion.guardar_empresa_activa(caso.empresa_id)
+                # page.navigate() es "asyncio.create_task(push_route(...))" sin
+                # esperar esa tarea — dentro de un handler async como este, la
+                # tarea queda huérfana y puede perderse cuando la corrutina
+                # termina. La doc de Flet es explícita: en contextos async hay
+                # que usar `await page.push_route(...)` en su lugar.
+                await page.push_route(rutas.DASHBOARD)
+                return
 
-        if isinstance(caso, SeleccionTenantRequerida):
-            estado_navegacion.establecer_seleccion_tenant(caso.token_seleccion_tenant)
-            page.navigate(rutas.SELECCIONAR_TENANT)
-            return
+            if isinstance(caso, SeleccionTenantRequerida):
+                estado_navegacion.establecer_seleccion_tenant(caso.token_seleccion_tenant)
+                await page.push_route(rutas.SELECCIONAR_TENANT)
+                return
 
-        if isinstance(caso, MfaPendiente):
-            estado_navegacion.establecer_mfa_pendiente(
-                caso.token_mfa_pendiente, caso.requiere_enrolamiento
+            if isinstance(caso, MfaPendiente):
+                estado_navegacion.establecer_mfa_pendiente(
+                    caso.token_mfa_pendiente, caso.requiere_enrolamiento
+                )
+                await page.push_route(
+                    rutas.MFA_ENROLAR if caso.requiere_enrolamiento else rutas.MFA_VERIFICAR
+                )
+                return
+        except Exception:
+            traceback.print_exc()
+            boton_ingresar.disabled = False
+            boton_ingresar.content = "Ingresar"
+            mostrar_error(
+                "Ocurrió un error inesperado al iniciar sesión. "
+                "Revisá la consola para más detalles."
             )
-            page.navigate(
-                rutas.MFA_ENROLAR if caso.requiere_enrolamiento else rutas.MFA_VERIFICAR
-            )
-            return
 
     boton_ingresar.on_click = al_enviar
     campo_email.on_submit = al_enviar

@@ -2,8 +2,9 @@ name: Release
 
 # Se dispara al pushear un tag "v*" (ej. v0.2.0). BACKEND_URL se toma de un
 # secret del repo (Settings > Secrets and variables > Actions) y se escribe
-# a un .env antes de cada build — core/config.py lo lee con python-dotenv
-# igual que en desarrollo, así que no hace falta tocar código para esto.
+# a src/core/.env antes de cada build — core/config.py lo carga con
+# python-dotenv apuntando a esa ruta explícita (ver comentario en ese
+# archivo sobre por qué no se usa load_dotenv() a secas).
 on:
   push:
     tags:
@@ -43,8 +44,11 @@ jobs:
 
       - run: uv sync
 
+      # flet build solo empaqueta lo que está bajo src/ (tool.flet.app.path),
+      # así que el .env tiene que vivir ahí para viajar dentro del ejecutable
+      # final — un .env en la raíz del repo nunca llega al build empaquetado.
       - name: Escribir .env con el backend de producción
-        run: echo "BACKEND_URL=${{ secrets.BACKEND_URL }}" > .env
+        run: echo "BACKEND_URL=${{ secrets.BACKEND_URL }}" > src/core/.env
 
       - run: uv run flet build ${{ matrix.target }} --yes
 
@@ -107,8 +111,11 @@ jobs:
 
       - run: uv sync
 
+      # flet build solo empaqueta lo que está bajo src/ (tool.flet.app.path),
+      # así que el .env tiene que vivir ahí para viajar dentro del ejecutable
+      # final — un .env en la raíz del repo nunca llega al build empaquetado.
       - name: Escribir .env con el backend de producción
-        run: echo "BACKEND_URL=${{ secrets.BACKEND_URL }}" > .env
+        run: echo "BACKEND_URL=${{ secrets.BACKEND_URL }}" > src/core/.env
 
       - run: uv run flet build windows --yes
 
@@ -129,8 +136,11 @@ jobs:
 
       - run: uv sync
 
+      # flet build solo empaqueta lo que está bajo src/ (tool.flet.app.path),
+      # así que el .env tiene que vivir ahí para viajar dentro del ejecutable
+      # final — un .env en la raíz del repo nunca llega al build empaquetado.
       - name: Escribir .env con el backend de producción
-        run: echo "BACKEND_URL=${{ secrets.BACKEND_URL }}" > .env
+        run: echo "BACKEND_URL=${{ secrets.BACKEND_URL }}" > src/core/.env
 
       - run: uv run flet build macos --yes
 

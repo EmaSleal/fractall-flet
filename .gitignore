@@ -9,6 +9,7 @@ env/
 
 # Environments / secrets
 .env
+src/core/.env
 
 # Tool caches
 .mypy_cache/

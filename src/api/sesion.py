@@ -1,34 +1,35 @@
-from contextvars import ContextVar
 from typing import Optional
 
+import flet as ft
 from flet_secure_storage import SecureStorage
 
 _CLAVE_ACCESO = "fractall_access_token"
 _CLAVE_REFRESCO = "fractall_refresh_token"
 _CLAVE_EMPRESA = "fractall_empresa_id"
 
-# ContextVar, no una variable de módulo plana: Flet corre todas las sesiones
-# concurrentes del deploy web en un solo proceso Python (confirmado en
-# flet/app.py::on_session_created y en page.run_task, que hacen exactamente
-# esto mismo con su propio _context_page). Una variable plana se pisaría
-# entre dos usuarios conectados al mismo tiempo — con un ContextVar, cada
-# sesión (y cada tarea que dispare vía page.run_task dentro de ella) ve su
-# propio valor, aislado del resto, sin tener que pasar `page` a mano por
-# toda la capa api/. En desktop/mobile (un proceso = un usuario) se comporta
-# igual que una variable plana.
-_almacen: ContextVar[Optional[SecureStorage]] = ContextVar("almacen_sesion", default=None)
+_ATRIBUTO_ALMACEN = "_fractall_almacen_seguro"
+
+# Guardado como atributo de `page`, no en un ContextVar: Flet despacha cada
+# evento entrante del cliente (click, confirmación de cambio de ruta) en un
+# asyncio.Task independiente creado por el loop de mensajes de la conexión
+# (flet/messaging/flet_socket_server.py::_on_message) — no anidado dentro
+# del task que originó la navegación. Un ContextVar seteado en un handler
+# (p. ej. dentro de al_enviar) no es visible en el task del próximo evento,
+# aunque sea la misma sesión — confirmado leyendo el código de Flet, y es lo
+# que causaba que guardar_tokens() fallara en silencio. `page` sí es el
+# mismo objeto en todos esos tasks, y `flet.context.page` lo resuelve
+# siempre a la sesión correcta porque Flet resetea su propio ContextVar
+# interno (_context_page) al principio de cada dispatch_event.
 
 
-def inicializar(almacen: SecureStorage) -> None:
+def inicializar(page: ft.Page, almacen: SecureStorage) -> None:
     """Se llama una vez desde main(page), con la instancia de SecureStorage
-    de esa page/sesión. flet_secure_storage.SecureStorage se auto-registra en
-    la page activa al construirse: acá solo guardamos la referencia para
-    poder usarla desde fuera de la UI."""
-    _almacen.set(almacen)
+    de esa page/sesión, ya montada en page.services."""
+    setattr(page, _ATRIBUTO_ALMACEN, almacen)
 
 
 def _requerir_almacen() -> SecureStorage:
-    almacen = _almacen.get()
+    almacen = getattr(ft.context.page, _ATRIBUTO_ALMACEN, None)
     if almacen is None:
         raise RuntimeError("La sesión no fue inicializada. Llamá a inicializar() en main().")
     return almacen

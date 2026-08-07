@@ -80,7 +80,8 @@ async def main(page: ft.Page):
     page.bgcolor = tokens.PAPEL
 
     almacen_seguro = SecureStorage()
-    sesion.inicializar(almacen_seguro)
+    page.services.append(almacen_seguro)
+    sesion.inicializar(page, almacen_seguro)
 
     def construir_vista(ruta: str) -> ft.View:
         base = router_query.ruta_base(ruta)

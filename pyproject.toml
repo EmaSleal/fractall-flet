@@ -38,3 +38,12 @@ copyright = "Copyright (C) 2026 by Fractall"
 
 [tool.flet.app]
 path = "src"
+
+[tool.flet.android]
+# 24 (Android 7.0) es el piso real para esta app: Flutter 3.44.8 exige 23
+# como mínimo absoluto, pero el manifest merge de Gradle además rechaza
+# cualquier valor menor a 24 porque una dependencia transitiva
+# (flutter_plugin_android_lifecycle) declara minSdkVersion=24. Ambos
+# límites confirmados por el propio build. Fijado explícito para no
+# depender del default implícito de Flutter.
+min_sdk_version = 24

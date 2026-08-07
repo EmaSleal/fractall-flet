@@ -56,8 +56,21 @@ def vista_login(page: ft.Page) -> ft.View:
         caso = resultado.datos
 
         if isinstance(caso, AccessToken):
-            await sesion.guardar_tokens(caso.access_token, caso.refresh_token)
-            await sesion.guardar_empresa_activa(caso.empresa_id)
+            try:
+                await sesion.guardar_tokens(caso.access_token, caso.refresh_token)
+                await sesion.guardar_empresa_activa(caso.empresa_id)
+            except Exception:
+                # Sin este try/except, un fallo acá (p. ej. SecureStorage sin
+                # keyring/Secret Service disponible en el sistema) dejaba al
+                # usuario pegado en /login sin ningún mensaje: la excepción
+                # cortaba la corrutina antes de llegar al page.navigate y no
+                # había ningún feedback visible de que algo había fallado.
+                mostrar_error(
+                    "No se pudo guardar la sesión en este dispositivo. "
+                    "Verificá que haya un almacén de credenciales disponible "
+                    "(keyring del sistema) e intentá de nuevo."
+                )
+                return
             page.navigate(rutas.DASHBOARD)
             return
 

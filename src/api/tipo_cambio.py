@@ -1,21 +1,19 @@
 from typing import Optional
 
-import httpx
-
-_URL_HACIENDA_TIPO_CAMBIO = "https://api.hacienda.go.cr/indicadores/tc/dolar"
+from .cliente import ApiFallo
+from .cliente_autenticado import peticion_autenticada
 
 
 async def obtener_tipo_cambio_dolar() -> Optional[float]:
-    """No golpea nuestro backend — es la misma API pública de Hacienda que
-    usa fractall-frontend (vía su propio proxy `/api/tipo-cambio`, cacheado
-    1h). No bloqueante: si falla, el campo de tipo de cambio del wizard
-    queda igual editable a mano."""
+    """GET /catalogo/tipo-cambio/dolar — el backend cachea y autentica la
+    consulta a Hacienda, mismo patrón que el resto de /catalogo/* (antes
+    este módulo le pegaba directo a la API pública de Hacienda). No
+    bloqueante: si falla, el campo de tipo de cambio del wizard queda igual
+    editable a mano."""
+    resultado = await peticion_autenticada("GET", "/catalogo/tipo-cambio/dolar")
+    if isinstance(resultado, ApiFallo):
+        return None
     try:
-        async with httpx.AsyncClient(timeout=5.0) as cliente:
-            respuesta = await cliente.get(_URL_HACIENDA_TIPO_CAMBIO)
-        if respuesta.status_code != 200:
-            return None
-        datos = respuesta.json()
-        return float(datos["venta"]["valor"])
-    except (httpx.HTTPError, KeyError, ValueError, TypeError):
+        return float(resultado.datos["venta"]["valor"])
+    except (KeyError, ValueError, TypeError):
         return None

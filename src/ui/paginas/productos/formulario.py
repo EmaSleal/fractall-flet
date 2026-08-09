@@ -11,6 +11,7 @@ from api.productos import DatosProducto, Producto
 from api.unidades_medida import UnidadMedida
 from diseno import tokens
 from ui.componentes.buscador_cabys import construir_buscador_cabys
+from ui.componentes.selector_unidad_medida import construir_selector_unidad_medida
 
 
 def construir_formulario_producto(
@@ -48,14 +49,24 @@ def construir_formulario_producto(
             )
         )
 
+    estado_unidad = {"codigo": p.codigo_unidad_fe if p else None}
+
+    def al_elegir_unidad(item: UnidadMedida) -> None:
+        estado_unidad["codigo"] = item.codigo
+
     if unidades_medida:
-        campo_unidad = ft.Dropdown(
-            label="Unidad de medida (Hacienda)",
-            value=p.codigo_unidad_fe if p else None,
-            options=[
-                ft.DropdownOption(key=u.codigo, text=f"{u.codigo} — {u.descripcion}")
-                for u in unidades_medida
-            ],
+        valor_inicial_unidad = ""
+        if p and p.codigo_unidad_fe:
+            unidad_actual = next(
+                (u for u in unidades_medida if u.codigo == p.codigo_unidad_fe), None
+            )
+            valor_inicial_unidad = (
+                f"{unidad_actual.codigo} — {unidad_actual.descripcion}"
+                if unidad_actual
+                else p.codigo_unidad_fe
+            )
+        campo_unidad = construir_selector_unidad_medida(
+            unidades_medida, al_elegir_unidad, valor_inicial_unidad
         )
     else:
         campo_unidad = ft.TextField(
@@ -120,11 +131,16 @@ def construir_formulario_producto(
         boton_guardar.content = "Guardando..."
         page.update()
 
+        codigo_unidad_fe = (
+            campo_unidad.value
+            if isinstance(campo_unidad, ft.TextField)
+            else estado_unidad["codigo"]
+        )
         datos = DatosProducto(
             codigo=campo_codigo.value,
             descripcion=campo_descripcion.value,
             codigo_cabys=estado_cabys["codigo"],
-            codigo_unidad_fe=campo_unidad.value or "",
+            codigo_unidad_fe=codigo_unidad_fe or "",
             precio_venta=precio,
             activo=campo_activo.value,
         )

@@ -73,8 +73,8 @@ async def test_formulario_bloque_ubicacion_parcial_falla():
 
     await boton.on_click(None)
 
-    assert campos["canton"].error
-    assert campos["distrito"].error
+    assert campos["canton"].error_text
+    assert campos["distrito"].error_text
     assert campos["otras_senas"].error
     assert llamadas["guardar"] == []
 

@@ -9,6 +9,7 @@ from api.cliente import ApiFallo, ApiResultado
 from api.cliente_autenticado import SesionExpirada
 from api.clientes import Cliente, DatosCliente
 from diseno import tokens
+from ui.componentes.bloque_ubicacion import construir_bloque_ubicacion
 
 
 def construir_formulario_cliente(
@@ -41,24 +42,14 @@ def construir_formulario_cliente(
     )
 
     columnas_ubicacion = {"xs": 12, "sm": 6}
-    campo_provincia = ft.TextField(
-        label="Provincia",
-        max_length=1,
-        value=(c.codigo_provincia or "") if c else "",
-        col=columnas_ubicacion,
-    )
-    campo_canton = ft.TextField(
-        label="Cantón",
-        max_length=2,
-        value=(c.canton or "") if c else "",
-        col=columnas_ubicacion,
-    )
-    campo_distrito = ft.TextField(
-        label="Distrito",
-        max_length=2,
-        value=(c.distrito or "") if c else "",
-        col=columnas_ubicacion,
-    )
+    bloque_ubicacion = construir_bloque_ubicacion(page, col=columnas_ubicacion)
+    campo_provincia = bloque_ubicacion.provincia
+    campo_canton = bloque_ubicacion.canton
+    campo_distrito = bloque_ubicacion.distrito
+    if c:
+        campo_provincia.value = c.codigo_provincia or None
+        campo_canton.value = c.canton or None
+        campo_distrito.value = c.distrito or None
     campo_otras_senas = ft.TextField(
         label="Otras señas",
         max_length=300,
@@ -89,13 +80,12 @@ def construir_formulario_cliente(
         for campo in (
             campo_nombre,
             campo_numero_identificacion,
-            campo_provincia,
-            campo_canton,
-            campo_distrito,
             campo_otras_senas,
             campo_email,
         ):
             campo.error = None
+        for campo in (campo_provincia, campo_canton, campo_distrito):
+            campo.error_text = None
         campo_tipo_identificacion.error_text = None
         texto_error.visible = False
 
@@ -122,24 +112,26 @@ def construir_formulario_cliente(
 
         errores_ubicacion = validacion.bloque_todo_o_nada(
             {
-                "provincia": campo_provincia.value,
-                "canton": campo_canton.value,
-                "distrito": campo_distrito.value,
+                "provincia": campo_provincia.value or "",
+                "canton": campo_canton.value or "",
+                "distrito": campo_distrito.value or "",
                 "otras_senas": campo_otras_senas.value,
             }
         )
-        mapa_campos = {
+        mapa_dropdowns_ubicacion = {
             "provincia": campo_provincia,
             "canton": campo_canton,
             "distrito": campo_distrito,
-            "otras_senas": campo_otras_senas,
         }
         for clave, mensaje in errores_ubicacion.items():
-            mapa_campos[clave].error = mensaje
+            if clave == "otras_senas":
+                campo_otras_senas.error = mensaje
+            else:
+                mapa_dropdowns_ubicacion[clave].error_text = mensaje
             valido = False
 
         if not errores_ubicacion and all(
-            v.value.strip()
+            (v.value or "").strip()
             for v in (campo_provincia, campo_canton, campo_distrito, campo_otras_senas)
         ):
             if len(campo_otras_senas.value.strip()) < 5:
@@ -165,9 +157,9 @@ def construir_formulario_cliente(
             tipo_identificacion=campo_tipo_identificacion.value,
             numero_identificacion=campo_numero_identificacion.value,
             codigo_actividad=campo_codigo_actividad.value,
-            codigo_provincia=campo_provincia.value,
-            canton=campo_canton.value,
-            distrito=campo_distrito.value,
+            codigo_provincia=campo_provincia.value or "",
+            canton=campo_canton.value or "",
+            distrito=campo_distrito.value or "",
             otras_senas=campo_otras_senas.value,
             telefono=campo_telefono.value,
             email=campo_email.value,
@@ -191,18 +183,19 @@ def construir_formulario_cliente(
 
     boton_guardar.on_click = al_guardar
     # campo_otras_senas queda afuera: es multilinea, Enter ahí inserta un
-    # salto de línea en vez de enviar el formulario.
+    # salto de línea en vez de enviar el formulario. provincia/canton/distrito
+    # quedan afuera también: son Dropdown, no tienen on_submit.
     for campo in (
         campo_nombre,
         campo_numero_identificacion,
         campo_codigo_actividad,
-        campo_provincia,
-        campo_canton,
-        campo_distrito,
         campo_telefono,
         campo_email,
     ):
         campo.on_submit = al_guardar
+
+    page.run_task(bloque_ubicacion.cargar_provincias)
+    page.run_task(bloque_ubicacion.sincronizar_cascada)
 
     return ft.Column(
         horizontal_alignment=ft.CrossAxisAlignment.STRETCH,

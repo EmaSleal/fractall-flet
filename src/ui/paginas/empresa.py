@@ -15,6 +15,7 @@ from api.empresa import (
 )
 from diseno import tokens
 from ui.componentes.badge import construir_badge
+from ui.componentes.bloque_ubicacion import construir_bloque_ubicacion
 from ui.componentes.shell_protegido import construir_vista_protegida
 
 _COLOR_POR_CATEGORIA = {
@@ -50,9 +51,10 @@ def vista_empresa(page: ft.Page) -> ft.View:
         ],
     )
     campo_codigo_actividad = ft.TextField(label="Código de actividad", max_length=6)
-    campo_provincia = ft.TextField(label="Provincia", max_length=1, col={"xs": 12, "sm": 6})
-    campo_canton = ft.TextField(label="Cantón", max_length=2, col={"xs": 12, "sm": 6})
-    campo_distrito = ft.TextField(label="Distrito", max_length=2, col={"xs": 12, "sm": 6})
+    bloque_ubicacion = construir_bloque_ubicacion(page, col={"xs": 12, "sm": 6})
+    campo_provincia = bloque_ubicacion.provincia
+    campo_canton = bloque_ubicacion.canton
+    campo_distrito = bloque_ubicacion.distrito
     campo_barrio = ft.TextField(label="Barrio", max_length=100, col={"xs": 12, "sm": 6})
     campo_otras_senas = ft.TextField(
         label="Otras señas", max_length=300, multiline=True, max_lines=2
@@ -139,9 +141,10 @@ def vista_empresa(page: ft.Page) -> ft.View:
         campo_numero_identificacion.value = empresa.numero_identificacion or ""
         campo_tipo_identificacion.value = empresa.tipo_identificacion
         campo_codigo_actividad.value = empresa.codigo_actividad or ""
-        campo_provincia.value = empresa.codigo_provincia or ""
-        campo_canton.value = empresa.canton or ""
-        campo_distrito.value = empresa.distrito or ""
+        campo_provincia.value = empresa.codigo_provincia or None
+        campo_canton.value = empresa.canton or None
+        campo_distrito.value = empresa.distrito or None
+        page.run_task(bloque_ubicacion.sincronizar_cascada)
         campo_barrio.value = empresa.barrio or ""
         campo_otras_senas.value = empresa.otras_senas or ""
         campo_telefono.value = empresa.telefono or ""
@@ -182,9 +185,9 @@ def vista_empresa(page: ft.Page) -> ft.View:
             numero_identificacion=campo_numero_identificacion.value,
             tipo_identificacion=campo_tipo_identificacion.value or "",
             codigo_actividad=campo_codigo_actividad.value,
-            codigo_provincia=campo_provincia.value,
-            canton=campo_canton.value,
-            distrito=campo_distrito.value,
+            codigo_provincia=campo_provincia.value or "",
+            canton=campo_canton.value or "",
+            distrito=campo_distrito.value or "",
             barrio=campo_barrio.value,
             otras_senas=campo_otras_senas.value,
             telefono=campo_telefono.value,
@@ -205,15 +208,13 @@ def vista_empresa(page: ft.Page) -> ft.View:
 
     boton_guardar_fiscales.on_click = al_guardar_fiscales
     # campo_otras_senas queda afuera: es multilinea, Enter ahí inserta un
-    # salto de línea en vez de enviar el formulario.
+    # salto de línea en vez de enviar el formulario. provincia/canton/distrito
+    # quedan afuera también: son Dropdown, no tienen on_submit.
     for campo in (
         campo_razon_social,
         campo_nombre_comercial,
         campo_numero_identificacion,
         campo_codigo_actividad,
-        campo_provincia,
-        campo_canton,
-        campo_distrito,
         campo_barrio,
         campo_telefono,
         campo_email,
@@ -384,6 +385,7 @@ def vista_empresa(page: ft.Page) -> ft.View:
             ],
         )
 
+    page.run_task(bloque_ubicacion.cargar_provincias)
     page.run_task(cargar)
 
     contenido_pagina = ft.Column(

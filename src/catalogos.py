@@ -84,6 +84,19 @@ MONEDAS = [
     ("USD", "Dólares (USD)"),
 ]
 
+TIPOS_COMPROBANTE = [
+    ("01", "Factura Electrónica"),
+    ("02", "Nota de Débito Electrónica"),
+    ("03", "Nota de Crédito Electrónica"),
+    ("04", "Tiquete Electrónico"),
+    ("05", "Confirmación de aceptación del comprobante"),
+    ("06", "Confirmación de aceptación parcial del comprobante"),
+    ("07", "Confirmación de rechazo del comprobante"),
+    ("08", "Factura Electrónica de Compra"),
+    ("09", "Factura Electrónica de Exportación"),
+    ("10", "Recibo Electrónico de Pago"),
+]
+
 TIPOS_MEDIO_PAGO = [
     ("01", "Efectivo"),
     ("02", "Tarjeta"),
@@ -132,6 +145,10 @@ def label_condicion_venta(codigo: str) -> str:
 
 def label_tipo_medio_pago(codigo: str) -> str:
     return dict(TIPOS_MEDIO_PAGO).get(codigo, codigo)
+
+
+def label_tipo_comprobante(codigo: str) -> str:
+    return dict(TIPOS_COMPROBANTE).get(codigo, codigo)
 
 
 def label_tipo_documento_oc(codigo: str) -> str:

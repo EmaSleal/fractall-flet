@@ -1,5 +1,6 @@
 import flet as ft
 
+import catalogos
 import formato
 import router_query
 import rutas
@@ -83,7 +84,9 @@ def vista_facturas_detalle(page: ft.Page) -> ft.View:
                         spacing=2,
                         controls=[
                             ft.Text(
-                                factura.tipo_comprobante or "Factura electrónica",
+                                catalogos.label_tipo_comprobante(factura.tipo_comprobante)
+                                if factura.tipo_comprobante
+                                else "Factura electrónica",
                                 theme_style=ft.TextThemeStyle.BODY_SMALL,
                                 color=tokens.GRAFITO,
                             ),
@@ -255,7 +258,7 @@ def vista_facturas_detalle(page: ft.Page) -> ft.View:
                         ft.Text("Medios de pago", theme_style=ft.TextThemeStyle.TITLE_MEDIUM),
                         *[
                             ft.Text(
-                                f"{m.medio_pago_otros or m.tipo_medio_pago}: "
+                                f"{m.medio_pago_otros or catalogos.label_tipo_medio_pago(m.tipo_medio_pago)}: "
                                 f"{formato.formatear_moneda(m.total_medio_pago, factura.moneda)}",
                                 theme_style=ft.TextThemeStyle.BODY_SMALL,
                                 font_family=tokens.FUENTE_MONO,

@@ -86,6 +86,58 @@ async def obtener_cliente(id_cliente: str) -> ApiResultado[Optional[Cliente]]:
     return ApiExito(datos=_cliente_desde(resultado.datos))
 
 
+@dataclass
+class ActividadHacienda:
+    codigo: str
+    descripcion: str
+    tipo: Optional[str]
+    estado: Optional[str]
+
+
+def _actividad_desde(datos: dict) -> ActividadHacienda:
+    return ActividadHacienda(
+        codigo=datos.get("codigo", ""),
+        descripcion=datos.get("descripcion", ""),
+        tipo=datos.get("tipo"),
+        estado=datos.get("estado"),
+    )
+
+
+@dataclass
+class ConsultaHacienda:
+    exitosa: bool
+    nombre: Optional[str]
+    tipo_identificacion: Optional[str]
+    actividades: list[ActividadHacienda]
+    mensaje_error: Optional[str]
+
+
+async def consultar_hacienda(identificacion: str) -> ApiResultado[ConsultaHacienda]:
+    """GET /catalogo/clientes/consultar-hacienda -- delega en
+    HaciendaApiService#consultarContribuyente del backend. Nunca convierte
+    "no encontrado" en ApiFallo (a diferencia de buscar_cabys): viaja en
+    ConsultaHacienda.exitosa=False, igual que en fractall-frontend, porque el
+    llamador necesita distinguir "no encontrado" de un error real de red/HTTP."""
+    resultado = await peticion_autenticada(
+        "GET",
+        "/catalogo/clientes/consultar-hacienda",
+        parametros={"identificacion": identificacion},
+    )
+    if isinstance(resultado, ApiFallo):
+        return resultado
+
+    datos = resultado.datos
+    return ApiExito(
+        datos=ConsultaHacienda(
+            exitosa=datos.get("exitosa", False),
+            nombre=datos.get("nombre"),
+            tipo_identificacion=datos.get("tipoIdentificacion"),
+            actividades=[_actividad_desde(a) for a in (datos.get("actividades") or [])],
+            mensaje_error=datos.get("mensajeError"),
+        )
+    )
+
+
 def _nulo_si_vacio(valor: str) -> Optional[str]:
     valor = valor.strip()
     return valor or None

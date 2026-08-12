@@ -1,14 +1,17 @@
 import api.clientes as clientes_module
 from api.cliente import ApiExito, ApiFallo
 from api.clientes import (
+    ActividadHacienda,
     Cliente,
     ClienteCreado,
     ClienteExoneracion,
+    ConsultaHacienda,
     DatosCliente,
     DatosExoneracion,
     PaginaClientes,
     actualizar_cliente,
     buscar_clientes,
+    consultar_hacienda,
     crear_cliente,
     crear_exoneracion,
     desactivar_exoneracion,
@@ -188,6 +191,72 @@ async def test_desactivar_exoneracion(monkeypatch):
     resultado = await desactivar_exoneracion("e-1")
 
     assert isinstance(resultado, ApiExito)
+
+
+async def test_consultar_hacienda_exitosa_mapea_actividades_y_parametros(monkeypatch):
+    llamadas = []
+    _mockear_peticion_autenticada(
+        monkeypatch,
+        ApiExito(
+            datos={
+                "exitosa": True,
+                "nombre": "Persona Consultada S.A.",
+                "tipoIdentificacion": "02",
+                "actividades": [
+                    {"codigo": "620100", "descripcion": "Programación", "tipo": "P", "estado": "A"},
+                    {"codigo": "469100", "descripcion": "Otro comercio", "tipo": "S", "estado": "I"},
+                ],
+                "mensajeError": None,
+            }
+        ),
+        capturar_en=llamadas,
+    )
+
+    resultado = await consultar_hacienda("310987654")
+
+    assert llamadas[0]["parametros"] == {"identificacion": "310987654"}
+    assert isinstance(resultado, ApiExito)
+    assert isinstance(resultado.datos, ConsultaHacienda)
+    assert resultado.datos.exitosa is True
+    assert resultado.datos.nombre == "Persona Consultada S.A."
+    assert resultado.datos.tipo_identificacion == "02"
+    assert len(resultado.datos.actividades) == 2
+    assert isinstance(resultado.datos.actividades[0], ActividadHacienda)
+    assert resultado.datos.actividades[0].codigo == "620100"
+    assert resultado.datos.actividades[1].estado == "I"
+
+
+async def test_consultar_hacienda_no_encontrado_no_se_convierte_en_apifallo(monkeypatch):
+    """A diferencia de buscar_cabys, exitosa=False viaja como ApiExito -- el
+    llamador necesita distinguir "no encontrado" de un error real de red."""
+    _mockear_peticion_autenticada(
+        monkeypatch,
+        ApiExito(
+            datos={
+                "exitosa": False,
+                "mensajeError": "Identificación no encontrada en el registro de Hacienda",
+                "actividades": None,
+            }
+        ),
+    )
+
+    resultado = await consultar_hacienda("999999999")
+
+    assert isinstance(resultado, ApiExito)
+    assert resultado.datos.exitosa is False
+    assert resultado.datos.actividades == []
+    assert resultado.datos.mensaje_error == "Identificación no encontrada en el registro de Hacienda"
+
+
+async def test_consultar_hacienda_error_de_red_se_propaga(monkeypatch):
+    _mockear_peticion_autenticada(
+        monkeypatch,
+        ApiFallo(error=ErrorApi(mensaje="No autenticado.", status=401)),
+    )
+
+    resultado = await consultar_hacienda("310987654")
+
+    assert isinstance(resultado, ApiFallo)
 
 
 async def test_buscar_clientes_devuelve_lista_plana(monkeypatch):

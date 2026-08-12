@@ -15,6 +15,21 @@ def label_tipo_identificacion(codigo: str) -> str:
     return _LABELS_TIPO_IDENTIFICACION.get(codigo, codigo)
 
 
+# Cantidad de caracteres esperada de numeroIdentificacion por tipo -- espejo de
+# TipoIdentificacion#validarNumero en el backend (01 Física=9, 02 Jurídica=10, 03 DIMEX=11 o
+# 12, 04 NITE=10). Deliberadamente NO se exige que sean solo dígitos: Hacienda podría estar
+# migrando la cédula jurídica a un formato alfanumérico (Decreto 44648-MJ), todavía sin
+# confirmar en el documento técnico oficial vigente -- ver fractall/docs/referencia. Solo se
+# valida la cantidad de caracteres, que no depende de esa incertidumbre (mismo criterio ya
+# aplicado en fractall-frontend).
+LONGITUDES_IDENTIFICACION: dict[str, tuple[int, ...]] = {
+    "01": (9,),
+    "02": (10,),
+    "03": (11, 12),
+    "04": (10,),
+}
+
+
 # (valor, etiqueta, no_aplica_a_factura_electronica)
 TIPOS_EXONERACION = [
     ("01", "Compras autorizadas por la DGT", True),

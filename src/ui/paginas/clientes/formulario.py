@@ -1,3 +1,4 @@
+import re
 from typing import Awaitable, Callable, Optional
 
 import flet as ft
@@ -7,7 +8,7 @@ import rutas
 import validacion
 from api.cliente import ApiFallo, ApiResultado
 from api.cliente_autenticado import SesionExpirada
-from api.clientes import Cliente, DatosCliente
+from api.clientes import ActividadHacienda, Cliente, DatosCliente, consultar_hacienda
 from diseno import tokens
 from ui.componentes.bloque_ubicacion import construir_bloque_ubicacion
 
@@ -34,12 +35,26 @@ def construir_formulario_cliente(
         label="Número de identificación",
         max_length=20,
         value=c.numero_identificacion if c else "",
+        expand=True,
     )
+    boton_buscar_hacienda = ft.Button(content="Buscar en Hacienda")
+    texto_estado_hacienda = ft.Text(value="", theme_style=ft.TextThemeStyle.BODY_SMALL, visible=False)
+
+    # campo_codigo_actividad sigue siendo la fuente de verdad que lee al_guardar (sin cambios
+    # ahí) -- cuando Hacienda devuelve actividades activas, se oculta y un Dropdown paralelo
+    # toma su lugar visualmente, reflejando la selección en campo_codigo_actividad.value.
     campo_codigo_actividad = ft.TextField(
         label="Código de actividad",
         max_length=6,
         value=(c.codigo_actividad or "") if c else "",
     )
+    campo_codigo_actividad_dropdown = ft.Dropdown(
+        label="Código de actividad",
+        options=[],
+        visible=False,
+        hint_text="Actividades económicas activas reportadas por Hacienda",
+    )
+    estado_hacienda: dict = {"actividades": [], "ultima_busqueda_automatica": None}
 
     columnas_ubicacion = {"xs": 12, "sm": 6}
     bloque_ubicacion = construir_bloque_ubicacion(page, col=columnas_ubicacion)
@@ -93,6 +108,110 @@ def construir_formulario_cliente(
         texto_error.value = mensaje
         texto_error.visible = True
         page.update()
+
+    def mostrar_estado_hacienda(mensaje: str, *, exito: bool) -> None:
+        texto_estado_hacienda.value = mensaje
+        texto_estado_hacienda.color = tokens.ESTADO_ACEPTADO if exito else tokens.ESTADO_RECHAZADO
+        texto_estado_hacienda.visible = True
+        page.update()
+
+    def actualizar_actividades(activas: list[ActividadHacienda]) -> None:
+        estado_hacienda["actividades"] = activas
+        if not activas:
+            campo_codigo_actividad_dropdown.visible = False
+            campo_codigo_actividad.visible = True
+            return
+
+        principal = next((a for a in activas if a.tipo == "P"), activas[0])
+        campo_codigo_actividad_dropdown.options = [
+            ft.DropdownOption(
+                key=a.codigo,
+                text=f"{a.codigo} — {a.descripcion}" + (" (Principal)" if a.tipo == "P" else ""),
+            )
+            for a in activas
+        ]
+        campo_codigo_actividad_dropdown.value = principal.codigo
+        campo_codigo_actividad.value = principal.codigo
+        campo_codigo_actividad_dropdown.visible = True
+        campo_codigo_actividad.visible = False
+
+    def al_cambiar_actividad(e: ft.Event[ft.Dropdown]) -> None:
+        campo_codigo_actividad.value = e.control.value
+        page.update()
+
+    campo_codigo_actividad_dropdown.on_select = al_cambiar_actividad
+
+    async def al_buscar_hacienda(e: Optional[ft.Event] = None) -> None:
+        identificacion = (campo_numero_identificacion.value or "").strip()
+        if not identificacion:
+            campo_numero_identificacion.error = "Ingresá un número de identificación para buscar"
+            page.update()
+            return
+        campo_numero_identificacion.error = None
+
+        boton_buscar_hacienda.disabled = True
+        boton_buscar_hacienda.content = "Buscando..."
+        page.update()
+
+        try:
+            resultado = await consultar_hacienda(identificacion)
+        except SesionExpirada:
+            page.navigate(rutas.LOGIN)
+            return
+
+        boton_buscar_hacienda.disabled = False
+        boton_buscar_hacienda.content = "Buscar en Hacienda"
+
+        if isinstance(resultado, ApiFallo):
+            mostrar_estado_hacienda("Error al consultar Hacienda. Intentá de nuevo.", exito=False)
+            return
+
+        datos = resultado.datos
+        if datos.exitosa and datos.nombre:
+            campo_nombre.value = datos.nombre
+            if datos.tipo_identificacion:
+                campo_tipo_identificacion.value = datos.tipo_identificacion
+            actualizar_actividades([a for a in datos.actividades if a.estado == "A"])
+            mostrar_estado_hacienda("Datos completados desde Hacienda", exito=True)
+        else:
+            actualizar_actividades([])
+            mostrar_estado_hacienda(
+                datos.mensaje_error or "No se encontró esa identificación en Hacienda", exito=False
+            )
+
+    boton_buscar_hacienda.on_click = al_buscar_hacienda
+
+    # Dispara la búsqueda sola apenas numeroIdentificacion llega a la cantidad de caracteres
+    # que Hacienda espera para el tipoIdentificacion seleccionado (catalogos.LONGITUDES_
+    # IDENTIFICACION) -- evita que el usuario tenga que acordarse de tocar el botón. El dict
+    # de estado evita reintentar la misma consulta en cada evento, pero sigue permitiendo
+    # re-disparar si el valor cambia (p. ej. DIMEX pasando de 11 a 12 caracteres tras un
+    # primer miss).
+    async def verificar_auto_busqueda() -> None:
+        if boton_buscar_hacienda.disabled:
+            return
+        tipo = campo_tipo_identificacion.value
+        longitudes = catalogos.LONGITUDES_IDENTIFICACION.get(tipo) if tipo else None
+        if not longitudes:
+            return
+
+        numero_limpio = re.sub(r"[\s-]", "", campo_numero_identificacion.value or "")
+        if len(numero_limpio) not in longitudes:
+            return
+        if estado_hacienda["ultima_busqueda_automatica"] == numero_limpio:
+            return
+
+        estado_hacienda["ultima_busqueda_automatica"] = numero_limpio
+        await al_buscar_hacienda()
+
+    async def al_cambiar_numero_identificacion(e: ft.Event[ft.TextField]) -> None:
+        await verificar_auto_busqueda()
+
+    async def al_cambiar_tipo_identificacion(e: ft.Event[ft.Dropdown]) -> None:
+        await verificar_auto_busqueda()
+
+    campo_numero_identificacion.on_change = al_cambiar_numero_identificacion
+    campo_tipo_identificacion.on_select = al_cambiar_tipo_identificacion
 
     def validar() -> bool:
         valido = True
@@ -203,8 +322,16 @@ def construir_formulario_cliente(
         controls=[
             campo_nombre,
             campo_tipo_identificacion,
-            campo_numero_identificacion,
+            ft.Row(controls=[campo_numero_identificacion, boton_buscar_hacienda]),
+            ft.Text(
+                "Completa nombre y tipo de identificación automáticamente si Hacienda "
+                "encuentra el contribuyente.",
+                theme_style=ft.TextThemeStyle.BODY_SMALL,
+                color=tokens.GRAFITO,
+            ),
+            texto_estado_hacienda,
             campo_codigo_actividad,
+            campo_codigo_actividad_dropdown,
             ft.Text(
                 "Bloque de ubicación: completá los cuatro campos juntos, o "
                 "ninguno.",

@@ -22,5 +22,5 @@ def construir_buscador_cabys(
         renderizar_opcion=_renderizar,
         al_seleccionar=al_seleccionar,
         valor_inicial=valor_inicial,
-        pista="Buscá por descripción o código (mínimo 3 caracteres)",
+        pista="Buscá por descripción o código",
     )

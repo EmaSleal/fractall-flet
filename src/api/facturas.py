@@ -15,6 +15,7 @@ class FacturaResumen:
     moneda: str
     total: float
     estado: str
+    tipo_comprobante: str
     ultimo_resultado_consulta: Optional[str]
     fecha_emision: str
 
@@ -29,6 +30,7 @@ def _factura_resumen_desde(datos: dict) -> FacturaResumen:
         moneda=datos.get("moneda", "CRC"),
         total=datos.get("total", 0),
         estado=datos.get("estado", "GENERADO"),
+        tipo_comprobante=datos.get("tipoComprobante", ""),
         ultimo_resultado_consulta=datos.get("ultimoResultadoConsulta"),
         fecha_emision=datos.get("fechaEmision", ""),
     )
@@ -165,6 +167,10 @@ class FacturaDetalle:
     # presente en fractall-frontend con el mismo comentario) — se asume
     # CRC como fallback hasta que el backend lo exponga.
     moneda: str = "CRC"
+    # Solo presente en Notas de Débito/Crédito — id de la Factura Electrónica
+    # que este comprobante corrige. Se usa en el detalle para armar el link
+    # "Corrige a factura origen".
+    factura_referencia_id: Optional[str] = None
 
 
 def _factura_detalle_desde(datos: dict) -> FacturaDetalle:
@@ -192,11 +198,13 @@ def _factura_detalle_desde(datos: dict) -> FacturaDetalle:
         fecha_respuesta=datos.get("fechaRespuesta"),
         ultimo_resultado_consulta=datos.get("ultimoResultadoConsulta"),
         intentos_envio=datos.get("intentosEnvio"),
+        factura_referencia_id=datos.get("facturaReferenciaId"),
     )
 
 
 async def listar_facturas(
     estado: str = "",
+    tipo_comprobante: str = "",
     cliente_id: str = "",
     desde: str = "",
     hasta: str = "",
@@ -206,6 +214,8 @@ async def listar_facturas(
     parametros: dict[str, Any] = {"limit": limit}
     if estado:
         parametros["estado"] = estado
+    if tipo_comprobante:
+        parametros["tipoComprobante"] = tipo_comprobante
     if cliente_id:
         parametros["clienteId"] = cliente_id
     if desde:
@@ -233,6 +243,36 @@ async def crear_factura(cuerpo: dict) -> ApiResultado[FacturaDetalle]:
     se mantiene deliberadamente ajena a los conceptos del wizard (no
     importa EstadoFactura), es solo la capa de contrato HTTP."""
     resultado = await peticion_autenticada("POST", "/facturas", cuerpo=cuerpo)
+    if isinstance(resultado, ApiFallo):
+        return resultado
+    return ApiExito(datos=_factura_detalle_desde(resultado.datos))
+
+
+async def crear_tiquete(cuerpo: dict) -> ApiResultado[FacturaDetalle]:
+    """`cuerpo` viene de `EstadoTiquete.a_cuerpo_creacion()`. El Tiquete
+    Electrónico queda persistido como una fila más de facturas (mismo
+    recurso `/facturas/{id}`), por eso reusa `_factura_detalle_desde`."""
+    resultado = await peticion_autenticada("POST", "/tiquetes", cuerpo=cuerpo)
+    if isinstance(resultado, ApiFallo):
+        return resultado
+    return ApiExito(datos=_factura_detalle_desde(resultado.datos))
+
+
+async def crear_nota_debito(cuerpo: dict) -> ApiResultado[FacturaDetalle]:
+    """`cuerpo` viene de `EstadoNotaDebito.a_cuerpo_creacion()`. La Nota de
+    Débito Electrónica queda persistida como una fila más de facturas (mismo
+    recurso `/facturas/{id}`), por eso reusa `_factura_detalle_desde`."""
+    resultado = await peticion_autenticada("POST", "/notas-debito", cuerpo=cuerpo)
+    if isinstance(resultado, ApiFallo):
+        return resultado
+    return ApiExito(datos=_factura_detalle_desde(resultado.datos))
+
+
+async def crear_nota_credito(cuerpo: dict) -> ApiResultado[FacturaDetalle]:
+    """`cuerpo` viene de `EstadoNotaCredito.a_cuerpo_creacion()`. La Nota de
+    Crédito Electrónica queda persistida como una fila más de facturas (mismo
+    recurso `/facturas/{id}`), por eso reusa `_factura_detalle_desde`."""
+    resultado = await peticion_autenticada("POST", "/notas-credito", cuerpo=cuerpo)
     if isinstance(resultado, ApiFallo):
         return resultado
     return ApiExito(datos=_factura_detalle_desde(resultado.datos))

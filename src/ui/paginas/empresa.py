@@ -1,9 +1,12 @@
+import re
+
 import flet as ft
 
 import catalogos
 import rutas
 from api.cliente import ApiFallo
 from api.cliente_autenticado import SesionExpirada
+from api.clientes import ActividadHacienda, consultar_hacienda
 from api.empresa import (
     DatosFiscales,
     Empresa,
@@ -41,7 +44,7 @@ def vista_empresa(page: ft.Page) -> ft.View:
     campo_razon_social = ft.TextField(label="Razón social", max_length=255)
     campo_nombre_comercial = ft.TextField(label="Nombre comercial", max_length=255)
     campo_numero_identificacion = ft.TextField(
-        label="Número de identificación", max_length=20
+        label="Número de identificación", max_length=20, expand=True
     )
     campo_tipo_identificacion = ft.Dropdown(
         label="Tipo de identificación",
@@ -50,7 +53,16 @@ def vista_empresa(page: ft.Page) -> ft.View:
             for clave, etiqueta in catalogos.TIPOS_IDENTIFICACION
         ],
     )
+    boton_buscar_hacienda = ft.Button(content="Buscar en Hacienda")
+    texto_estado_hacienda = ft.Text(value="", theme_style=ft.TextThemeStyle.BODY_SMALL, visible=False)
     campo_codigo_actividad = ft.TextField(label="Código de actividad", max_length=6)
+    campo_codigo_actividad_dropdown = ft.Dropdown(
+        label="Código de actividad",
+        options=[],
+        visible=False,
+        hint_text="Actividades económicas activas reportadas por Hacienda",
+    )
+    estado_hacienda: dict = {"actividades": [], "ultima_busqueda_automatica": None}
     bloque_ubicacion = construir_bloque_ubicacion(page, col={"xs": 12, "sm": 6})
     campo_provincia = bloque_ubicacion.provincia
     campo_canton = bloque_ubicacion.canton
@@ -172,6 +184,107 @@ def vista_empresa(page: ft.Page) -> ft.View:
         contenedor_secciones.controls = secciones
         contenedor_secciones.visible = True
         page.update()
+
+    def mostrar_estado_hacienda(mensaje: str, *, exito: bool) -> None:
+        texto_estado_hacienda.value = mensaje
+        texto_estado_hacienda.color = tokens.ESTADO_ACEPTADO if exito else tokens.ESTADO_RECHAZADO
+        texto_estado_hacienda.visible = True
+        page.update()
+
+    def actualizar_actividades(activas: list[ActividadHacienda]) -> None:
+        estado_hacienda["actividades"] = activas
+        if not activas:
+            campo_codigo_actividad_dropdown.visible = False
+            campo_codigo_actividad.visible = True
+            return
+
+        principal = next((a for a in activas if a.tipo == "P"), activas[0])
+        campo_codigo_actividad_dropdown.options = [
+            ft.DropdownOption(
+                key=a.codigo,
+                text=f"{a.codigo} — {a.descripcion}" + (" (Principal)" if a.tipo == "P" else ""),
+            )
+            for a in activas
+        ]
+        campo_codigo_actividad_dropdown.value = principal.codigo
+        campo_codigo_actividad.value = principal.codigo
+        campo_codigo_actividad_dropdown.visible = True
+        campo_codigo_actividad.visible = False
+
+    def al_cambiar_actividad(e: ft.Event[ft.Dropdown]) -> None:
+        campo_codigo_actividad.value = e.control.value
+        page.update()
+
+    campo_codigo_actividad_dropdown.on_select = al_cambiar_actividad
+
+    async def al_buscar_hacienda(e: ft.Event | None = None) -> None:
+        identificacion = (campo_numero_identificacion.value or "").strip()
+        if not identificacion:
+            campo_numero_identificacion.error = "Ingresá un número de identificación para buscar"
+            page.update()
+            return
+        campo_numero_identificacion.error = None
+
+        boton_buscar_hacienda.disabled = True
+        boton_buscar_hacienda.content = "Buscando..."
+        page.update()
+
+        try:
+            resultado = await consultar_hacienda(identificacion)
+        except SesionExpirada:
+            page.navigate(rutas.LOGIN)
+            return
+
+        boton_buscar_hacienda.disabled = False
+        boton_buscar_hacienda.content = "Buscar en Hacienda"
+
+        if isinstance(resultado, ApiFallo):
+            mostrar_estado_hacienda("Error al consultar Hacienda. Intentá de nuevo.", exito=False)
+            return
+
+        datos = resultado.datos
+        if datos.exitosa and datos.nombre:
+            campo_razon_social.value = datos.nombre
+            if datos.tipo_identificacion:
+                campo_tipo_identificacion.value = datos.tipo_identificacion
+            actualizar_actividades([a for a in datos.actividades if a.estado == "A"])
+            mostrar_estado_hacienda("Datos completados desde Hacienda", exito=True)
+        else:
+            actualizar_actividades([])
+            mostrar_estado_hacienda(
+                datos.mensaje_error or "No se encontró esa identificación en Hacienda", exito=False
+            )
+
+    boton_buscar_hacienda.on_click = al_buscar_hacienda
+
+    # Dispara la búsqueda sola apenas numeroIdentificacion llega a la cantidad de caracteres
+    # que Hacienda espera para el tipoIdentificacion seleccionado (catalogos.LONGITUDES_
+    # IDENTIFICACION) -- evita que el usuario tenga que acordarse de tocar el botón.
+    async def verificar_auto_busqueda() -> None:
+        if boton_buscar_hacienda.disabled:
+            return
+        tipo = campo_tipo_identificacion.value
+        longitudes = catalogos.LONGITUDES_IDENTIFICACION.get(tipo) if tipo else None
+        if not longitudes:
+            return
+
+        numero_limpio = re.sub(r"[\s-]", "", campo_numero_identificacion.value or "")
+        if len(numero_limpio) not in longitudes:
+            return
+        if estado_hacienda["ultima_busqueda_automatica"] == numero_limpio:
+            return
+
+        estado_hacienda["ultima_busqueda_automatica"] = numero_limpio
+        await al_buscar_hacienda()
+
+    async def al_cambiar_numero_identificacion(e: ft.Event[ft.TextField]) -> None:
+        await verificar_auto_busqueda()
+
+    async def al_cambiar_tipo_identificacion(e: ft.Event[ft.Dropdown]) -> None:
+        await verificar_auto_busqueda()
+
+    campo_numero_identificacion.on_change = al_cambiar_numero_identificacion
+    campo_tipo_identificacion.on_select = al_cambiar_tipo_identificacion
 
     async def al_guardar_fiscales(e: ft.Event[ft.Button]) -> None:
         texto_error_fiscales.visible = False
@@ -319,9 +432,17 @@ def vista_empresa(page: ft.Page) -> ft.View:
                 ft.Text("Datos fiscales", theme_style=ft.TextThemeStyle.TITLE_MEDIUM),
                 campo_razon_social,
                 campo_nombre_comercial,
-                campo_numero_identificacion,
+                ft.Row(controls=[campo_numero_identificacion, boton_buscar_hacienda]),
+                ft.Text(
+                    "Completa razón social y actividad económica automáticamente si "
+                    "Hacienda encuentra el contribuyente.",
+                    theme_style=ft.TextThemeStyle.BODY_SMALL,
+                    color=tokens.GRAFITO,
+                ),
+                texto_estado_hacienda,
                 campo_tipo_identificacion,
                 campo_codigo_actividad,
+                campo_codigo_actividad_dropdown,
                 ft.ResponsiveRow(
                     controls=[campo_provincia, campo_canton, campo_distrito, campo_barrio]
                 ),

@@ -2,6 +2,7 @@ import flet as ft
 
 import catalogos
 import formato
+import polling_estado
 import router_query
 import rutas
 from api.cliente import ApiFallo
@@ -25,6 +26,13 @@ def _puede_reenviar(factura: FacturaDetalle) -> bool:
         factura.estado == "ENVIADO"
         and factura.ultimo_resultado_consulta == "ERROR_COMUNICACION"
     )
+
+
+def _puede_emitir_nota_credito_o_debito(factura: FacturaDetalle) -> bool:
+    """Misma condición de elegibilidad para Nota de Crédito y Nota de
+    Débito: ambas referencian una Factura Electrónica (tipo 01) ya
+    ACEPTADA."""
+    return factura.estado == "ACEPTADO" and factura.tipo_comprobante == "01"
 
 
 def vista_facturas_detalle(page: ft.Page) -> ft.View:
@@ -73,7 +81,16 @@ def vista_facturas_detalle(page: ft.Page) -> ft.View:
             if isinstance(resultado_perfil, ApiFallo)
             else resultado_perfil.datos.permisos
         )
-        _armar_contenido(factura, "factura.reenviar" in permisos)
+        tiene_permiso_reenviar = "factura.reenviar" in permisos
+        _armar_contenido(factura, tiene_permiso_reenviar)
+
+        factura_final = await polling_estado.esperar_estado_final(
+            consultar=lambda: obtener_factura(id_factura),
+            estado_inicial=factura.estado,
+            extraer_estado=lambda f: f.estado,
+        )
+        if factura_final is not None:
+            _armar_contenido(factura_final, tiene_permiso_reenviar)
 
     def _armar_contenido(factura: FacturaDetalle, tiene_permiso_reenviar: bool) -> None:
         contenedor_encabezado.controls = [
@@ -183,6 +200,18 @@ def vista_facturas_detalle(page: ft.Page) -> ft.View:
                                 )
                             ]
                             if factura.fecha_respuesta
+                            else []
+                        )
+                        + (
+                            [
+                                ft.TextButton(
+                                    content="Corrige a factura origen →",
+                                    on_click=lambda e: page.navigate(
+                                        rutas.FACTURAS_DETALLE, id=factura.factura_referencia_id
+                                    ),
+                                )
+                            ]
+                            if factura.factura_referencia_id
                             else []
                         ),
                     ),
@@ -355,6 +384,24 @@ def vista_facturas_detalle(page: ft.Page) -> ft.View:
 
             boton_reenviar.on_click = al_reenviar
             botones_acciones.append(boton_reenviar)
+
+        if _puede_emitir_nota_credito_o_debito(factura):
+            botones_acciones.append(
+                ft.Button(
+                    content="Nota de débito",
+                    on_click=lambda e: page.navigate(
+                        rutas.FACTURAS_NOTA_DEBITO_NUEVA, factura_id=factura.id
+                    ),
+                )
+            )
+            botones_acciones.append(
+                ft.Button(
+                    content="Nota de crédito",
+                    on_click=lambda e: page.navigate(
+                        rutas.FACTURAS_NOTA_CREDITO_NUEVA, factura_id=factura.id
+                    ),
+                )
+            )
 
         bloques.append(ft.Row(wrap=True, spacing=8, controls=botones_acciones))
 

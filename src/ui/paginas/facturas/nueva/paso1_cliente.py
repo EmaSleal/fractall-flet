@@ -57,7 +57,7 @@ def construir_paso1(
         buscar=buscar_clientes,
         renderizar_opcion=_texto_cliente,
         al_seleccionar=lambda c: page.run_task(al_elegir_cliente, c),
-        pista="Buscá por nombre o identificación (mínimo 3 caracteres)",
+        pista="Buscá por nombre o identificación",
     )
 
     campo_condicion_venta = ft.Dropdown(

@@ -32,6 +32,13 @@ def _fila_factura(factura: FacturaResumen, page: ft.Page) -> ft.Container:
                             font_family=tokens.FUENTE_MONO,
                         ),
                         ft.Text(
+                            catalogos.label_tipo_comprobante(factura.tipo_comprobante)
+                            if factura.tipo_comprobante
+                            else "",
+                            theme_style=ft.TextThemeStyle.BODY_SMALL,
+                            color=tokens.GRAFITO,
+                        ),
+                        ft.Text(
                             factura.cliente_nombre,
                             theme_style=ft.TextThemeStyle.BODY_SMALL,
                             color=tokens.GRAFITO,
@@ -75,6 +82,17 @@ def vista_facturas(page: ft.Page) -> ft.View:
         ],
     )
 
+    campo_tipo_comprobante = ft.Dropdown(
+        label="Documento",
+        value="",
+        options=[ft.DropdownOption(key="", text="Todos los documentos")]
+        + [
+            ft.DropdownOption(key=clave, text=etiqueta)
+            for clave, etiqueta in catalogos.TIPOS_COMPROBANTE
+            if clave in ("01", "02", "03", "04")
+        ],
+    )
+
     estado_fechas = {"desde": None, "hasta": None}
     texto_desde = ft.Text("Desde: sin definir", theme_style=ft.TextThemeStyle.BODY_SMALL)
     texto_hasta = ft.Text("Hasta: sin definir", theme_style=ft.TextThemeStyle.BODY_SMALL)
@@ -105,6 +123,7 @@ def vista_facturas(page: ft.Page) -> ft.View:
     async def buscar(cursor: str | None):
         return await listar_facturas(
             estado=campo_estado.value or "",
+            tipo_comprobante=campo_tipo_comprobante.value or "",
             desde=formato.fecha_a_iso(estado_fechas["desde"]) if estado_fechas["desde"] else "",
             hasta=formato.fecha_a_iso(estado_fechas["hasta"]) if estado_fechas["hasta"] else "",
             cursor=cursor,
@@ -119,6 +138,7 @@ def vista_facturas(page: ft.Page) -> ft.View:
     )
 
     campo_estado.on_select = lista.recargar_desde_cero
+    campo_tipo_comprobante.on_select = lista.recargar_desde_cero
 
     boton_aplicar_fechas = ft.TextButton(
         content="Aplicar filtro de fechas",
@@ -133,13 +153,23 @@ def vista_facturas(page: ft.Page) -> ft.View:
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 controls=[
                     ft.Text("Facturas", theme_style=ft.TextThemeStyle.HEADLINE_LARGE),
-                    ft.Button(
-                        content="+ Nueva factura",
-                        on_click=lambda e: page.navigate(rutas.FACTURAS_NUEVA),
+                    ft.Row(
+                        controls=[
+                            ft.TextButton(
+                                content="+ Nuevo tiquete",
+                                on_click=lambda e: page.navigate(
+                                    rutas.FACTURAS_TIQUETES_NUEVA
+                                ),
+                            ),
+                            ft.Button(
+                                content="+ Nueva factura",
+                                on_click=lambda e: page.navigate(rutas.FACTURAS_NUEVA),
+                            ),
+                        ]
                     ),
                 ],
             ),
-            campo_estado,
+            ft.Row(controls=[campo_estado, campo_tipo_comprobante]),
             ft.Row(
                 controls=[
                     texto_desde,

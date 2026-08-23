@@ -9,6 +9,7 @@ from ui.componentes.contenedor_responsivo import contenedor_ancho_limitado
 
 
 def vista_registro(page: ft.Page) -> ft.View:
+    campo_razon_social = ft.TextField(label="Razón social", max_length=255)
     campo_nombre = ft.TextField(
         label="Nombre completo", max_length=255, autofill_hints=[ft.AutofillHint.NAME]
     )
@@ -32,7 +33,6 @@ def vista_registro(page: ft.Page) -> ft.View:
         max_length=72,
         autofill_hints=[ft.AutofillHint.NEW_PASSWORD],
     )
-    campo_razon_social = ft.TextField(label="Razón social", max_length=255)
     checkbox_mfa = ft.Checkbox(
         label="Activar verificación en dos pasos (MFA) para mi cuenta"
     )
@@ -160,11 +160,11 @@ def vista_registro(page: ft.Page) -> ft.View:
         page.update()
 
     boton_crear.on_click = al_enviar
+    campo_razon_social.on_submit = al_enviar
     campo_nombre.on_submit = al_enviar
     campo_email.on_submit = al_enviar
     campo_password.on_submit = al_enviar
     campo_confirmar.on_submit = al_enviar
-    campo_razon_social.on_submit = al_enviar
 
     formulario = ft.Column(
         scroll=ft.ScrollMode.AUTO,
@@ -177,12 +177,12 @@ def vista_registro(page: ft.Page) -> ft.View:
                 theme_style=ft.TextThemeStyle.BODY_MEDIUM,
                 color=tokens.GRAFITO,
             ),
+            campo_razon_social,
             campo_nombre,
             campo_email,
             campo_password,
             lista_reglas,
             campo_confirmar,
-            campo_razon_social,
             checkbox_mfa,
             texto_error,
             boton_crear,

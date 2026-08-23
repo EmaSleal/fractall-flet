@@ -15,13 +15,16 @@ def _texto_producto(p: Producto) -> str:
     return f"{p.codigo} — {p.descripcion}"
 
 
-def _construir_fila_linea(
+def construir_fila_linea(
     page: ft.Page,
     estado: EstadoFactura,
     linea: LineaWizard,
     al_eliminar: Callable[[], None],
     es_unica: bool,
 ) -> ft.Container:
+    """Público — el wizard de Tiquete (venta de mostrador, sin línea de
+    factura origen) reusa esta fila tal cual, solo cambia la orquestación
+    del paso (ver facturas/tiquetes/nueva/paso2_lineas.py)."""
     texto_subtotal = ft.Text(
         theme_style=ft.TextThemeStyle.BODY_SMALL, font_family=tokens.FUENTE_MONO
     )
@@ -48,7 +51,7 @@ def _construir_fila_linea(
         renderizar_opcion=_texto_producto,
         al_seleccionar=lambda p: page.run_task(al_elegir_producto, p),
         valor_inicial=linea.producto_descripcion,
-        pista="Buscá por código o descripción (mínimo 3 caracteres)",
+        pista="Buscá por código o descripción",
     )
 
     campo_cantidad = ft.TextField(
@@ -174,7 +177,7 @@ def construir_paso2(
 
     def renderizar_lineas() -> None:
         contenedor_lineas.controls = [
-            _construir_fila_linea(
+            construir_fila_linea(
                 page,
                 estado,
                 linea,

@@ -6,6 +6,7 @@ from api.facturas import (
     FacturaResumen,
     PaginaFacturas,
     crear_factura,
+    crear_nota_credito,
     crear_nota_debito,
     crear_tiquete,
     descargar_pdf,
@@ -368,6 +369,74 @@ async def test_crear_nota_debito_error(monkeypatch):
     )
 
     resultado = await crear_nota_debito(
+        {"facturaReferenciaId": "f-1", "codigoReferencia": "01", "lineas": []}
+    )
+
+    assert isinstance(resultado, ApiFallo)
+    assert resultado.error.status == 409
+
+
+async def test_crear_nota_credito(monkeypatch):
+    llamadas = []
+    _mockear_peticion_autenticada(
+        monkeypatch,
+        ApiExito(
+            datos={
+                "id": "nc-nueva",
+                "estado": "GENERADO",
+                "consecutivo": "003",
+                "claveNumerica": "506...",
+                "tipoComprobante": "03",
+                "facturaReferenciaId": "f-origen",
+            }
+        ),
+        capturar_en=llamadas,
+    )
+
+    cuerpo = {
+        "facturaReferenciaId": "f-origen",
+        "codigoReferencia": "06",
+        "lineas": [{"lineaFacturaOrigenId": "l-1", "cantidad": 2}],
+    }
+    resultado = await crear_nota_credito(cuerpo)
+
+    assert isinstance(resultado, ApiExito)
+    assert isinstance(resultado.datos, FacturaDetalle)
+    assert resultado.datos.factura_referencia_id == "f-origen"
+    assert llamadas[0]["cuerpo"] == cuerpo
+
+
+async def test_crear_nota_credito_llama_al_endpoint_correcto(monkeypatch):
+    llamadas = []
+
+    async def _fake(metodo, ruta, **kwargs):
+        llamadas.append((metodo, ruta))
+        return ApiExito(
+            datos={"id": "nc-1", "estado": "GENERADO", "consecutivo": "003", "claveNumerica": "x"}
+        )
+
+    monkeypatch.setattr(facturas_module, "peticion_autenticada", _fake)
+
+    await crear_nota_credito(
+        {"facturaReferenciaId": "f-1", "codigoReferencia": "01", "lineas": []}
+    )
+
+    assert llamadas[0] == ("POST", "/notas-credito")
+
+
+async def test_crear_nota_credito_error(monkeypatch):
+    _mockear_peticion_autenticada(
+        monkeypatch,
+        ApiFallo(
+            error=ErrorApi(
+                mensaje="El monto de las Notas de Crédito excede el total de la factura "
+                "origen",
+                status=409,
+            )
+        ),
+    )
+
+    resultado = await crear_nota_credito(
         {"facturaReferenciaId": "f-1", "codigoReferencia": "01", "lineas": []}
     )
 

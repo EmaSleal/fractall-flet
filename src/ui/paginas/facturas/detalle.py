@@ -394,6 +394,14 @@ def vista_facturas_detalle(page: ft.Page) -> ft.View:
                     ),
                 )
             )
+            botones_acciones.append(
+                ft.Button(
+                    content="Nota de crédito",
+                    on_click=lambda e: page.navigate(
+                        rutas.FACTURAS_NOTA_CREDITO_NUEVA, factura_id=factura.id
+                    ),
+                )
+            )
 
         bloques.append(ft.Row(wrap=True, spacing=8, controls=botones_acciones))
 

@@ -268,6 +268,16 @@ async def crear_nota_debito(cuerpo: dict) -> ApiResultado[FacturaDetalle]:
     return ApiExito(datos=_factura_detalle_desde(resultado.datos))
 
 
+async def crear_nota_credito(cuerpo: dict) -> ApiResultado[FacturaDetalle]:
+    """`cuerpo` viene de `EstadoNotaCredito.a_cuerpo_creacion()`. La Nota de
+    Crédito Electrónica queda persistida como una fila más de facturas (mismo
+    recurso `/facturas/{id}`), por eso reusa `_factura_detalle_desde`."""
+    resultado = await peticion_autenticada("POST", "/notas-credito", cuerpo=cuerpo)
+    if isinstance(resultado, ApiFallo):
+        return resultado
+    return ApiExito(datos=_factura_detalle_desde(resultado.datos))
+
+
 async def obtener_factura(id_factura: str) -> ApiResultado[Optional[FacturaDetalle]]:
     resultado = await peticion_autenticada("GET", f"/facturas/{id_factura}")
     if isinstance(resultado, ApiFallo):

@@ -28,6 +28,13 @@ def _puede_reenviar(factura: FacturaDetalle) -> bool:
     )
 
 
+def _puede_emitir_nota_credito_o_debito(factura: FacturaDetalle) -> bool:
+    """Misma condición de elegibilidad para Nota de Crédito y Nota de
+    Débito: ambas referencian una Factura Electrónica (tipo 01) ya
+    ACEPTADA."""
+    return factura.estado == "ACEPTADO" and factura.tipo_comprobante == "01"
+
+
 def vista_facturas_detalle(page: ft.Page) -> ft.View:
     id_factura = router_query.parametro(page.route, "id")
 
@@ -193,6 +200,18 @@ def vista_facturas_detalle(page: ft.Page) -> ft.View:
                                 )
                             ]
                             if factura.fecha_respuesta
+                            else []
+                        )
+                        + (
+                            [
+                                ft.TextButton(
+                                    content="Corrige a factura origen →",
+                                    on_click=lambda e: page.navigate(
+                                        rutas.FACTURAS_DETALLE, id=factura.factura_referencia_id
+                                    ),
+                                )
+                            ]
+                            if factura.factura_referencia_id
                             else []
                         ),
                     ),
@@ -365,6 +384,16 @@ def vista_facturas_detalle(page: ft.Page) -> ft.View:
 
             boton_reenviar.on_click = al_reenviar
             botones_acciones.append(boton_reenviar)
+
+        if _puede_emitir_nota_credito_o_debito(factura):
+            botones_acciones.append(
+                ft.Button(
+                    content="Nota de débito",
+                    on_click=lambda e: page.navigate(
+                        rutas.FACTURAS_NOTA_DEBITO_NUEVA, factura_id=factura.id
+                    ),
+                )
+            )
 
         bloques.append(ft.Row(wrap=True, spacing=8, controls=botones_acciones))
 

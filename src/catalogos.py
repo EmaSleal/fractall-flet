@@ -168,3 +168,23 @@ def label_tipo_comprobante(codigo: str) -> str:
 
 def label_tipo_documento_oc(codigo: str) -> str:
     return dict(TIPOS_DOCUMENTO_OC).get(codigo, codigo)
+
+
+CODIGOS_REFERENCIA = [
+    ("01", "Anula documento de referencia"),
+    ("02", "Corrige texto de documento de referencia"),
+    ("04", "Referencia a otro documento"),
+    ("05", "Sustituye comprobante provisional por contingencia"),
+    ("06", "Devolución de mercancía"),
+    ("07", "Sustituye comprobante electrónico"),
+    ("08", "Factura endosada"),
+    ("09", "Nota de crédito financiera"),
+    ("10", "Nota de débito financiera"),
+    ("11", "Proveedor no domiciliado"),
+    ("12", "Crédito por exoneración posterior a la facturación"),
+    ("99", "Otros"),
+]
+
+
+def label_codigo_referencia(codigo: str) -> str:
+    return dict(CODIGOS_REFERENCIA).get(codigo, codigo)

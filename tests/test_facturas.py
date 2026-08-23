@@ -6,6 +6,7 @@ from api.facturas import (
     FacturaResumen,
     PaginaFacturas,
     crear_factura,
+    crear_nota_debito,
     crear_tiquete,
     descargar_pdf,
     listar_facturas,
@@ -134,6 +135,49 @@ async def test_obtener_factura_detalle_hardcodea_moneda_crc(monkeypatch):
     assert isinstance(resultado.datos, FacturaDetalle)
     # FacturaResponse del backend no trae moneda -> fallback CRC
     assert resultado.datos.moneda == "CRC"
+
+
+async def test_obtener_factura_detalle_mapea_factura_referencia_id(monkeypatch):
+    _mockear_peticion_autenticada(
+        monkeypatch,
+        ApiExito(
+            datos={
+                "id": "nd-1",
+                "clienteNombre": "Ana",
+                "estado": "GENERADO",
+                "consecutivo": "002",
+                "claveNumerica": "506...",
+                "tipoComprobante": "02",
+                "facturaReferenciaId": "f-origen",
+            }
+        ),
+    )
+
+    resultado = await obtener_factura("nd-1")
+
+    assert isinstance(resultado, ApiExito)
+    assert resultado.datos.factura_referencia_id == "f-origen"
+
+
+async def test_obtener_factura_detalle_sin_factura_referencia_id_es_none(monkeypatch):
+    _mockear_peticion_autenticada(
+        monkeypatch,
+        ApiExito(
+            datos={
+                "id": "f-1",
+                "clienteNombre": "Ana",
+                "estado": "ACEPTADO",
+                "consecutivo": "001",
+                "claveNumerica": "506...",
+                "tipoComprobante": "01",
+            }
+        ),
+    )
+
+    resultado = await obtener_factura("f-1")
+
+    assert isinstance(resultado, ApiExito)
+    assert resultado.datos.factura_referencia_id is None
 
 
 async def test_obtener_factura_404_devuelve_none(monkeypatch):
@@ -269,3 +313,63 @@ async def test_crear_tiquete_error(monkeypatch):
 
     assert isinstance(resultado, ApiFallo)
     assert resultado.error.status == 400
+
+
+async def test_crear_nota_debito(monkeypatch):
+    llamadas = []
+    _mockear_peticion_autenticada(
+        monkeypatch,
+        ApiExito(
+            datos={
+                "id": "nd-nueva",
+                "estado": "GENERADO",
+                "consecutivo": "002",
+                "claveNumerica": "506...",
+                "tipoComprobante": "02",
+                "facturaReferenciaId": "f-origen",
+            }
+        ),
+        capturar_en=llamadas,
+    )
+
+    cuerpo = {
+        "facturaReferenciaId": "f-origen",
+        "codigoReferencia": "01",
+        "lineas": [{"productoId": "p-1", "cantidad": 1, "precioUnitario": 100}],
+    }
+    resultado = await crear_nota_debito(cuerpo)
+
+    assert isinstance(resultado, ApiExito)
+    assert isinstance(resultado.datos, FacturaDetalle)
+    assert resultado.datos.factura_referencia_id == "f-origen"
+    assert llamadas[0]["cuerpo"] == cuerpo
+
+
+async def test_crear_nota_debito_llama_al_endpoint_correcto(monkeypatch):
+    llamadas = []
+
+    async def _fake(metodo, ruta, **kwargs):
+        llamadas.append((metodo, ruta))
+        return ApiExito(
+            datos={"id": "nd-1", "estado": "GENERADO", "consecutivo": "002", "claveNumerica": "x"}
+        )
+
+    monkeypatch.setattr(facturas_module, "peticion_autenticada", _fake)
+
+    await crear_nota_debito({"facturaReferenciaId": "f-1", "codigoReferencia": "01", "lineas": []})
+
+    assert llamadas[0] == ("POST", "/notas-debito")
+
+
+async def test_crear_nota_debito_error(monkeypatch):
+    _mockear_peticion_autenticada(
+        monkeypatch,
+        ApiFallo(error=ErrorApi(mensaje="La factura origen no está ACEPTADO", status=409)),
+    )
+
+    resultado = await crear_nota_debito(
+        {"facturaReferenciaId": "f-1", "codigoReferencia": "01", "lineas": []}
+    )
+
+    assert isinstance(resultado, ApiFallo)
+    assert resultado.error.status == 409

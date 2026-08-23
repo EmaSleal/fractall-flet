@@ -167,6 +167,10 @@ class FacturaDetalle:
     # presente en fractall-frontend con el mismo comentario) — se asume
     # CRC como fallback hasta que el backend lo exponga.
     moneda: str = "CRC"
+    # Solo presente en Notas de Débito/Crédito — id de la Factura Electrónica
+    # que este comprobante corrige. Se usa en el detalle para armar el link
+    # "Corrige a factura origen".
+    factura_referencia_id: Optional[str] = None
 
 
 def _factura_detalle_desde(datos: dict) -> FacturaDetalle:
@@ -194,6 +198,7 @@ def _factura_detalle_desde(datos: dict) -> FacturaDetalle:
         fecha_respuesta=datos.get("fechaRespuesta"),
         ultimo_resultado_consulta=datos.get("ultimoResultadoConsulta"),
         intentos_envio=datos.get("intentosEnvio"),
+        factura_referencia_id=datos.get("facturaReferenciaId"),
     )
 
 
@@ -248,6 +253,16 @@ async def crear_tiquete(cuerpo: dict) -> ApiResultado[FacturaDetalle]:
     Electrónico queda persistido como una fila más de facturas (mismo
     recurso `/facturas/{id}`), por eso reusa `_factura_detalle_desde`."""
     resultado = await peticion_autenticada("POST", "/tiquetes", cuerpo=cuerpo)
+    if isinstance(resultado, ApiFallo):
+        return resultado
+    return ApiExito(datos=_factura_detalle_desde(resultado.datos))
+
+
+async def crear_nota_debito(cuerpo: dict) -> ApiResultado[FacturaDetalle]:
+    """`cuerpo` viene de `EstadoNotaDebito.a_cuerpo_creacion()`. La Nota de
+    Débito Electrónica queda persistida como una fila más de facturas (mismo
+    recurso `/facturas/{id}`), por eso reusa `_factura_detalle_desde`."""
+    resultado = await peticion_autenticada("POST", "/notas-debito", cuerpo=cuerpo)
     if isinstance(resultado, ApiFallo):
         return resultado
     return ApiExito(datos=_factura_detalle_desde(resultado.datos))

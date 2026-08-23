@@ -11,7 +11,6 @@ from diseno import tokens
 T = TypeVar("T")
 
 _DEMORA_DEBOUNCE_SEGUNDOS = 0.35
-_LARGO_MINIMO_CONSULTA = 3
 
 
 def construir_buscador_remoto(
@@ -21,19 +20,21 @@ def construir_buscador_remoto(
     renderizar_opcion: Callable[[T], str],
     al_seleccionar: Callable[[T], None],
     valor_inicial: str = "",
-    pista: str = "Escribí para buscar (mínimo 3 caracteres)",
+    pista: str = "Buscar...",
 ) -> ft.Column:
     """Combobox de búsqueda en vivo con debounce, genérico sobre el tipo de
     resultado — usado por CABYS, clientes y productos dentro del wizard de
     facturas. `buscar` recibe la consulta y devuelve una lista plana
-    (no paginada) de resultados."""
+    (no paginada) de resultados. Dispara una búsqueda inicial (consulta
+    vacía incluida) apenas el campo gana foco por primera vez, mostrando
+    una lista rápida sin exigir mínimo de caracteres."""
     campo = ft.TextField(label=etiqueta, hint_text=pista, value=valor_inicial)
     texto_estado = ft.Text(
         value="", theme_style=ft.TextThemeStyle.BODY_SMALL, color=tokens.GRAFITO, visible=False
     )
     resultados = ft.Column(spacing=2, visible=False)
 
-    estado = {"generacion": 0}
+    estado = {"generacion": 0, "enfocado": False}
 
     def _elegir(item: T) -> Callable[[ft.Event[ft.TextButton]], None]:
         def _handler(e: ft.Event[ft.TextButton]) -> None:
@@ -49,12 +50,6 @@ def construir_buscador_remoto(
         estado["generacion"] += 1
         generacion = estado["generacion"]
         consulta = campo.value.strip()
-
-        if len(consulta) < _LARGO_MINIMO_CONSULTA:
-            resultados.visible = False
-            texto_estado.visible = False
-            page.update()
-            return
 
         await asyncio.sleep(_DEMORA_DEBOUNCE_SEGUNDOS)
         if generacion != estado["generacion"]:
@@ -97,6 +92,13 @@ def construir_buscador_remoto(
         resultados.visible = True
         page.update()
 
+    async def _al_enfocar(e: ft.Event[ft.TextField]) -> None:
+        if estado["enfocado"]:
+            return
+        estado["enfocado"] = True
+        await _buscar()
+
     campo.on_change = _buscar
+    campo.on_focus = _al_enfocar
 
     return ft.Column(spacing=4, controls=[campo, texto_estado, resultados])

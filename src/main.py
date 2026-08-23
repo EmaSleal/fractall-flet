@@ -17,6 +17,7 @@ from ui.paginas.empresa import vista_empresa
 from ui.paginas.facturas.detalle import vista_facturas_detalle
 from ui.paginas.facturas.listado import vista_facturas
 from ui.paginas.facturas.nueva.wizard import vista_facturas_nueva
+from ui.paginas.facturas.tiquetes.nueva.wizard import vista_facturas_tiquetes_nueva
 from ui.paginas.landing import vista_landing
 from ui.paginas.login import vista_login
 from ui.paginas.mfa_enrolar import vista_mfa_enrolar
@@ -69,6 +70,7 @@ _RUTAS: dict[str, _Ruta] = {
     rutas.FACTURAS: _Ruta(vista_facturas),
     rutas.FACTURAS_DETALLE: _Ruta(vista_facturas_detalle),
     rutas.FACTURAS_NUEVA: _Ruta(vista_facturas_nueva),
+    rutas.FACTURAS_TIQUETES_NUEVA: _Ruta(vista_facturas_tiquetes_nueva),
 }
 
 

@@ -15,6 +15,7 @@ class FacturaResumen:
     moneda: str
     total: float
     estado: str
+    tipo_comprobante: str
     ultimo_resultado_consulta: Optional[str]
     fecha_emision: str
 
@@ -29,6 +30,7 @@ def _factura_resumen_desde(datos: dict) -> FacturaResumen:
         moneda=datos.get("moneda", "CRC"),
         total=datos.get("total", 0),
         estado=datos.get("estado", "GENERADO"),
+        tipo_comprobante=datos.get("tipoComprobante", ""),
         ultimo_resultado_consulta=datos.get("ultimoResultadoConsulta"),
         fecha_emision=datos.get("fechaEmision", ""),
     )
@@ -197,6 +199,7 @@ def _factura_detalle_desde(datos: dict) -> FacturaDetalle:
 
 async def listar_facturas(
     estado: str = "",
+    tipo_comprobante: str = "",
     cliente_id: str = "",
     desde: str = "",
     hasta: str = "",
@@ -206,6 +209,8 @@ async def listar_facturas(
     parametros: dict[str, Any] = {"limit": limit}
     if estado:
         parametros["estado"] = estado
+    if tipo_comprobante:
+        parametros["tipoComprobante"] = tipo_comprobante
     if cliente_id:
         parametros["clienteId"] = cliente_id
     if desde:
@@ -233,6 +238,16 @@ async def crear_factura(cuerpo: dict) -> ApiResultado[FacturaDetalle]:
     se mantiene deliberadamente ajena a los conceptos del wizard (no
     importa EstadoFactura), es solo la capa de contrato HTTP."""
     resultado = await peticion_autenticada("POST", "/facturas", cuerpo=cuerpo)
+    if isinstance(resultado, ApiFallo):
+        return resultado
+    return ApiExito(datos=_factura_detalle_desde(resultado.datos))
+
+
+async def crear_tiquete(cuerpo: dict) -> ApiResultado[FacturaDetalle]:
+    """`cuerpo` viene de `EstadoTiquete.a_cuerpo_creacion()`. El Tiquete
+    Electrónico queda persistido como una fila más de facturas (mismo
+    recurso `/facturas/{id}`), por eso reusa `_factura_detalle_desde`."""
+    resultado = await peticion_autenticada("POST", "/tiquetes", cuerpo=cuerpo)
     if isinstance(resultado, ApiFallo):
         return resultado
     return ApiExito(datos=_factura_detalle_desde(resultado.datos))

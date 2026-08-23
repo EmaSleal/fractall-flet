@@ -52,7 +52,10 @@ class ErrorWizard:
     mensaje: str
 
 
-def _cuerpo_linea(linea: LineaWizard) -> dict:
+def cuerpo_linea_wizard(linea: LineaWizard) -> dict:
+    """Público (sin `_`) porque estado_tiquete.py también arma líneas con el
+    mismo shape — el tiquete es una venta de mostrador, no un tipo de
+    comprobante con reglas de línea distintas."""
     item: dict = {
         "productoId": linea.producto_id,
         "cantidad": linea.cantidad,
@@ -159,7 +162,7 @@ class EstadoFactura:
             "condicionVenta": self.condicion_venta,
             "moneda": self.moneda,
             "tipoCambio": 1.0 if self.moneda == "CRC" else self.tipo_cambio,
-            "lineas": [_cuerpo_linea(linea) for linea in self.lineas],
+            "lineas": [cuerpo_linea_wizard(linea) for linea in self.lineas],
         }
         if self.condicion_venta == "02" and self.plazo_credito:
             cuerpo["plazoCredito"] = self.plazo_credito

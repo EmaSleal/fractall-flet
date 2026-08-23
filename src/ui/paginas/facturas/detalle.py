@@ -2,6 +2,7 @@ import flet as ft
 
 import catalogos
 import formato
+import polling_estado
 import router_query
 import rutas
 from api.cliente import ApiFallo
@@ -73,7 +74,16 @@ def vista_facturas_detalle(page: ft.Page) -> ft.View:
             if isinstance(resultado_perfil, ApiFallo)
             else resultado_perfil.datos.permisos
         )
-        _armar_contenido(factura, "factura.reenviar" in permisos)
+        tiene_permiso_reenviar = "factura.reenviar" in permisos
+        _armar_contenido(factura, tiene_permiso_reenviar)
+
+        factura_final = await polling_estado.esperar_estado_final(
+            consultar=lambda: obtener_factura(id_factura),
+            estado_inicial=factura.estado,
+            extraer_estado=lambda f: f.estado,
+        )
+        if factura_final is not None:
+            _armar_contenido(factura_final, tiene_permiso_reenviar)
 
     def _armar_contenido(factura: FacturaDetalle, tiene_permiso_reenviar: bool) -> None:
         contenedor_encabezado.controls = [

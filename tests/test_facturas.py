@@ -6,6 +6,7 @@ from api.facturas import (
     FacturaResumen,
     PaginaFacturas,
     crear_factura,
+    crear_tiquete,
     descargar_pdf,
     listar_facturas,
     obtener_factura,
@@ -64,15 +65,50 @@ async def test_listar_facturas_pasa_filtros(monkeypatch):
         monkeypatch, ApiExito(datos={"items": [], "nextCursor": None}), capturar_en=llamadas
     )
 
-    await listar_facturas(estado="ACEPTADO", cliente_id="c-1", desde="2026-01-01", hasta="2026-01-31")
+    await listar_facturas(
+        estado="ACEPTADO",
+        tipo_comprobante="04",
+        cliente_id="c-1",
+        desde="2026-01-01",
+        hasta="2026-01-31",
+    )
 
     assert llamadas[0]["parametros"] == {
         "limit": 20,
         "estado": "ACEPTADO",
+        "tipoComprobante": "04",
         "clienteId": "c-1",
         "desde": "2026-01-01",
         "hasta": "2026-01-31",
     }
+
+
+async def test_listar_facturas_mapea_tipo_comprobante(monkeypatch):
+    _mockear_peticion_autenticada(
+        monkeypatch,
+        ApiExito(
+            datos={
+                "items": [
+                    {
+                        "id": "f-1",
+                        "consecutivo": "00100001010000000001",
+                        "clienteNombre": "Ana",
+                        "moneda": "CRC",
+                        "total": 1000,
+                        "estado": "ACEPTADO",
+                        "tipoComprobante": "04",
+                        "fechaEmision": "2026-01-01",
+                    }
+                ],
+                "nextCursor": None,
+            }
+        ),
+    )
+
+    resultado = await listar_facturas()
+
+    assert isinstance(resultado, ApiExito)
+    assert resultado.datos.items[0].tipo_comprobante == "04"
 
 
 async def test_obtener_factura_detalle_hardcodea_moneda_crc(monkeypatch):
@@ -170,6 +206,66 @@ async def test_crear_factura_error(monkeypatch):
     )
 
     resultado = await crear_factura({"clienteId": "c-x", "lineas": []})
+
+    assert isinstance(resultado, ApiFallo)
+    assert resultado.error.status == 400
+
+
+async def test_crear_tiquete(monkeypatch):
+    llamadas = []
+    _mockear_peticion_autenticada(
+        monkeypatch,
+        ApiExito(
+            datos={
+                "id": "t-nueva",
+                "estado": "GENERADO",
+                "consecutivo": "004",
+                "claveNumerica": "506...",
+            }
+        ),
+        capturar_en=llamadas,
+    )
+
+    cuerpo = {
+        "condicionVenta": "01",
+        "medioPago": "01",
+        "moneda": "CRC",
+        "tipoCambio": 1.0,
+        "lineas": [{"productoId": "p-1", "cantidad": 1, "precioUnitario": 100}],
+    }
+    resultado = await crear_tiquete(cuerpo)
+
+    assert isinstance(resultado, ApiExito)
+    assert isinstance(resultado.datos, FacturaDetalle)
+    assert llamadas[0]["cuerpo"] == cuerpo
+
+
+async def test_crear_tiquete_sin_cliente_no_manda_clienteid(monkeypatch):
+    llamadas = []
+    _mockear_peticion_autenticada(
+        monkeypatch,
+        ApiExito(datos={"id": "t-1", "estado": "GENERADO", "consecutivo": "004", "claveNumerica": "x"}),
+        capturar_en=llamadas,
+    )
+
+    cuerpo = {
+        "condicionVenta": "01",
+        "medioPago": "01",
+        "moneda": "CRC",
+        "tipoCambio": 1.0,
+        "lineas": [{"productoId": "p-1", "cantidad": 1, "precioUnitario": 100}],
+    }
+    await crear_tiquete(cuerpo)
+
+    assert "clienteId" not in llamadas[0]["cuerpo"]
+
+
+async def test_crear_tiquete_error(monkeypatch):
+    _mockear_peticion_autenticada(
+        monkeypatch, ApiFallo(error=ErrorApi(mensaje="tipoCambio: fuera de rango", status=400))
+    )
+
+    resultado = await crear_tiquete({"moneda": "USD", "tipoCambio": 100.0, "lineas": []})
 
     assert isinstance(resultado, ApiFallo)
     assert resultado.error.status == 400

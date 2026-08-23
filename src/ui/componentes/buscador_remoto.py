@@ -21,44 +21,41 @@ def construir_buscador_remoto(
     al_seleccionar: Callable[[T], None],
     valor_inicial: str = "",
     pista: str = "Buscar...",
-) -> ft.Column:
+) -> ft.SearchBar:
     """Combobox de búsqueda en vivo con debounce, genérico sobre el tipo de
     resultado — usado por CABYS, clientes y productos dentro del wizard de
     facturas. `buscar` recibe la consulta y devuelve una lista plana
-    (no paginada) de resultados. Dispara una búsqueda inicial (consulta
-    vacía incluida) apenas el campo gana foco por primera vez, mostrando
-    una lista rápida sin exigir mínimo de caracteres."""
-    campo = ft.TextField(label=etiqueta, hint_text=pista, value=valor_inicial)
-    texto_estado = ft.Text(
-        value="", theme_style=ft.TextThemeStyle.BODY_SMALL, color=tokens.GRAFITO, visible=False
-    )
-    resultados = ft.Column(spacing=2, visible=False)
+    (no paginada) de resultados.
 
-    estado = {"generacion": 0, "enfocado": False}
+    Sobre ft.SearchBar (no ft.TextField + ft.Column de resultados, como
+    tenía antes): igual que combobox_local.py, así los resultados flotan en
+    un overlay real (view de Flutter) en vez de empujar el layout hacia
+    abajo. `on_tap` dispara una búsqueda inicial (consulta vacía) apenas se
+    abre, mostrando una lista rápida sin exigir mínimo de caracteres;
+    `on_change` la repite con debounce mientras el usuario tipea. Error de
+    red y "sin resultados" se muestran con colores distintos (antes eran el
+    mismo texto gris — indistinguibles para el usuario)."""
 
-    def _elegir(item: T) -> Callable[[ft.Event[ft.TextButton]], None]:
-        def _handler(e: ft.Event[ft.TextButton]) -> None:
+    estado = {"generacion": 0}
+
+    def _opcion(item: T) -> ft.ListTile:
+        async def _elegir(e: ft.Event[ft.ListTile]) -> None:
             al_seleccionar(item)
-            campo.value = renderizar_opcion(item)
-            resultados.visible = False
-            texto_estado.visible = False
-            page.update()
+            await barra.close_view(renderizar_opcion(item))
 
-        return _handler
+        return ft.ListTile(title=ft.Text(renderizar_opcion(item)), on_click=_elegir)
 
-    async def _buscar(e: Optional[ft.Event[ft.TextField]] = None) -> None:
-        estado["generacion"] += 1
-        generacion = estado["generacion"]
-        consulta = campo.value.strip()
+    def _mensaje(texto: str, *, es_error: bool = False) -> ft.ListTile:
+        color = tokens.ESTADO_RECHAZADO if es_error else tokens.GRAFITO
+        return ft.ListTile(title=ft.Text(texto, color=color), disabled=True)
 
+    async def _buscar(consulta: str, generacion: int) -> None:
         await asyncio.sleep(_DEMORA_DEBOUNCE_SEGUNDOS)
         if generacion != estado["generacion"]:
             return
 
-        texto_estado.value = "Buscando..."
-        texto_estado.visible = True
-        resultados.visible = False
-        page.update()
+        barra.controls = [_mensaje("Buscando...")]
+        barra.update()
 
         try:
             resultado = await buscar(consulta)
@@ -70,35 +67,50 @@ def construir_buscador_remoto(
             return
 
         if isinstance(resultado, ApiFallo):
-            texto_estado.value = resultado.error.mensaje
-            texto_estado.visible = True
-            resultados.visible = False
-            page.update()
+            barra.controls = [_mensaje(resultado.error.mensaje, es_error=True)]
+            barra.update()
             return
 
         items = resultado.datos
         if not items:
-            texto_estado.value = "Sin resultados"
-            texto_estado.visible = True
-            resultados.visible = False
-            page.update()
+            barra.controls = [_mensaje("Sin resultados")]
+            barra.update()
             return
 
-        texto_estado.visible = False
-        resultados.controls = [
-            ft.TextButton(content=renderizar_opcion(item), on_click=_elegir(item))
-            for item in items
-        ]
-        resultados.visible = True
-        page.update()
+        barra.controls = [_opcion(item) for item in items]
+        barra.update()
 
-    async def _al_enfocar(e: ft.Event[ft.TextField]) -> None:
-        if estado["enfocado"]:
-            return
-        estado["enfocado"] = True
-        await _buscar()
+    async def _abrir(e: Optional[ft.Event[ft.SearchBar]] = None) -> None:
+        estado["generacion"] += 1
+        await barra.open_view()
+        await _buscar("", estado["generacion"])
 
-    campo.on_change = _buscar
-    campo.on_focus = _al_enfocar
+    async def _cambiar(e: ft.Event[ft.SearchBar]) -> None:
+        estado["generacion"] += 1
+        await _buscar((e.control.value or "").strip(), estado["generacion"])
 
-    return ft.Column(spacing=4, controls=[campo, texto_estado, resultados])
+    borde = ft.BorderSide(width=1, color=tokens.ARENA)
+    barra = ft.SearchBar(
+        bar_hint_text=etiqueta,
+        view_hint_text=pista,
+        value=valor_inicial,
+        on_tap=_abrir,
+        on_change=_cambiar,
+        controls=[],
+        # Mismo lenguaje visual que combobox_local.py y el resto de la app
+        # (diseno/tema.py no define un SearchBarTheme global).
+        bar_bgcolor=tokens.LINO,
+        bar_elevation=0,
+        bar_shape=ft.RoundedRectangleBorder(radius=tokens.RADIO_MD),
+        bar_border_side=borde,
+        bar_text_style=ft.TextStyle(color=tokens.TINTA, size=tokens.FUENTE_BASE),
+        bar_hint_text_style=ft.TextStyle(color=tokens.GRAFITO, size=tokens.FUENTE_BASE),
+        view_bgcolor=tokens.LINO,
+        view_elevation=0,
+        view_shape=ft.RoundedRectangleBorder(radius=tokens.RADIO_LG),
+        view_side=borde,
+        view_header_text_style=ft.TextStyle(color=tokens.TINTA, size=tokens.FUENTE_BASE),
+        view_hint_text_style=ft.TextStyle(color=tokens.GRAFITO, size=tokens.FUENTE_BASE),
+        divider_color=tokens.ARENA,
+    )
+    return barra

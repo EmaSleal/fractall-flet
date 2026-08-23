@@ -7,7 +7,7 @@ REGLAS_PASSWORD = [
     ("Mínimo 8 caracteres", lambda p: len(p) >= 8),
     ("Una mayúscula", lambda p: bool(re.search(r"[A-Z]", p))),
     ("Un número", lambda p: bool(re.search(r"[0-9]", p))),
-    ("Un carácter especial", lambda p: bool(re.search(r"[^a-zA-Z0-9]", p))),
+    ("Un carácter especial (ej: ! @ # $ % & * - _ .)", lambda p: bool(re.search(r"[^a-zA-Z0-9]", p))),
 ]
 
 

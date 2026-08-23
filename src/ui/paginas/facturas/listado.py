@@ -75,6 +75,7 @@ def vista_facturas(page: ft.Page) -> ft.View:
     campo_estado = ft.Dropdown(
         label="Estado",
         value="",
+        col={"xs": 12, "sm": 6},
         options=[ft.DropdownOption(key="", text="Todos los estados")]
         + [
             ft.DropdownOption(key=clave, text=etiqueta)
@@ -85,6 +86,7 @@ def vista_facturas(page: ft.Page) -> ft.View:
     campo_tipo_comprobante = ft.Dropdown(
         label="Documento",
         value="",
+        col={"xs": 12, "sm": 6},
         options=[ft.DropdownOption(key="", text="Todos los documentos")]
         + [
             ft.DropdownOption(key=clave, text=etiqueta)
@@ -150,10 +152,12 @@ def vista_facturas(page: ft.Page) -> ft.View:
         spacing=16,
         controls=[
             ft.Row(
+                wrap=True,
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 controls=[
                     ft.Text("Facturas", theme_style=ft.TextThemeStyle.HEADLINE_LARGE),
                     ft.Row(
+                        spacing=8,
                         controls=[
                             ft.TextButton(
                                 content="+ Nuevo tiquete",
@@ -169,7 +173,7 @@ def vista_facturas(page: ft.Page) -> ft.View:
                     ),
                 ],
             ),
-            ft.Row(controls=[campo_estado, campo_tipo_comprobante]),
+            ft.ResponsiveRow(controls=[campo_estado, campo_tipo_comprobante]),
             ft.Row(
                 controls=[
                     texto_desde,

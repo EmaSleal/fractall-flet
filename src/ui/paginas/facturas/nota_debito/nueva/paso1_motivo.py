@@ -25,7 +25,8 @@ def construir_paso1(
         visible=estado.codigo_referencia == "99",
     )
     campo_razon = ft.TextField(
-        label="Razón (opcional)",
+        label="Razón *",
+        hint_text="Motivo de la nota de débito",
         value=estado.razon,
         max_length=180,
         multiline=True,

@@ -23,7 +23,23 @@ def test_validar_paso1_requiere_codigo_referencia():
 def test_validar_paso1_valido_con_codigo_referencia():
     estado = _estado()
     estado.codigo_referencia = "01"
+    estado.razon = "Ajuste de precio"
     assert v.validar_paso1(estado) == {}
+
+
+def test_validar_paso1_razon_vacia_es_invalida():
+    estado = _estado()
+    estado.codigo_referencia = "01"
+    errores = v.validar_paso1(estado)
+    assert "razon" in errores
+
+
+def test_validar_paso1_razon_solo_espacios_es_invalida():
+    estado = _estado()
+    estado.codigo_referencia = "01"
+    estado.razon = "   "
+    errores = v.validar_paso1(estado)
+    assert "razon" in errores
 
 
 def test_validar_paso1_codigo_99_requiere_otro():
@@ -37,6 +53,7 @@ def test_validar_paso1_codigo_99_con_otro_es_valido():
     estado = _estado()
     estado.codigo_referencia = "99"
     estado.codigo_referencia_otro = "Ajuste manual"
+    estado.razon = "Ajuste de precio"
     assert v.validar_paso1(estado) == {}
 
 
@@ -52,6 +69,7 @@ def test_validar_paso1_codigo_distinto_de_99_no_requiere_otro():
     estado = _estado()
     estado.codigo_referencia = "01"
     estado.codigo_referencia_otro = ""
+    estado.razon = "Ajuste de precio"
     assert v.validar_paso1(estado) == {}
 
 

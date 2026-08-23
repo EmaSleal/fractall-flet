@@ -16,6 +16,10 @@ def validar_paso1(estado: EstadoNotaDebito) -> dict[str, str]:
         errores["codigo_referencia"] = "Seleccioná un código de referencia"
     if estado.codigo_referencia == "99" and not estado.codigo_referencia_otro.strip():
         errores["codigo_referencia_otro"] = 'Requerido cuando el código es "Otros"'
-    if len(estado.razon) > _LARGO_MAXIMO_RAZON:
+    # Hacienda exige "Razón de referencia" pese a que el XSD la declara opcional
+    # (minOccurs="0") — confirmado con un rechazo real en SANDBOX (código -131).
+    if not estado.razon.strip():
+        errores["razon"] = "Requerido"
+    elif len(estado.razon) > _LARGO_MAXIMO_RAZON:
         errores["razon"] = f"Máximo {_LARGO_MAXIMO_RAZON} caracteres"
     return errores

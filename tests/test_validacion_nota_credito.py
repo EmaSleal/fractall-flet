@@ -40,7 +40,15 @@ def test_validar_paso1_requiere_codigo_referencia():
 def test_validar_paso1_valido_con_codigo_referencia():
     estado = _estado()
     estado.codigo_referencia = "06"
+    estado.razon = "Devolución de mercancía"
     assert v.validar_paso1(estado) == {}
+
+
+def test_validar_paso1_razon_vacia_es_invalida():
+    estado = _estado()
+    estado.codigo_referencia = "06"
+    errores = v.validar_paso1(estado)
+    assert "razon" in errores
 
 
 def test_validar_paso1_codigo_99_requiere_otro():

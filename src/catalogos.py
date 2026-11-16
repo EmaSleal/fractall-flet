@@ -138,15 +138,16 @@ TIPOS_DOCUMENTO_OC = [
 ]
 
 # Estados de FacturaResponse.estado — el OpenAPI lo tipa como "string" libre,
-# no enum, así que estos 5 son los valores de dominio conocidos hoy (mismo
+# no enum, así que estos 6 son los valores de dominio conocidos hoy (mismo
 # criterio que ESTADOS_EMPRESA). icono = nombre de ft.Icons, categoria elige
-# el color (aceptado/pendiente/rechazado/neutral).
+# el color (aceptado/pendiente/rechazado/error/neutral).
 ESTADOS_FACTURA = {
     "GENERADO": ("Generado", "DESCRIPTION", "neutral"),
     "FIRMADO": ("Firmado", "DESCRIPTION", "neutral"),
     "ENVIADO": ("Enviado", "SCHEDULE", "pendiente"),
     "ACEPTADO": ("Aceptado", "CHECK_CIRCLE", "aceptado"),
     "RECHAZADO": ("Rechazado", "CANCEL", "rechazado"),
+    "ERROR": ("Error", "ERROR_OUTLINE", "error"),
 }
 
 

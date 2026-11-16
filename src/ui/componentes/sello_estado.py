@@ -7,6 +7,7 @@ _COLOR_POR_CATEGORIA = {
     "aceptado": tokens.ESTADO_ACEPTADO,
     "pendiente": tokens.ESTADO_PENDIENTE,
     "rechazado": tokens.ESTADO_RECHAZADO,
+    "error": tokens.ESTADO_ERROR_COMUNICACION,
     "neutral": tokens.GRAFITO,
 }
 
@@ -15,6 +16,7 @@ _ICONOS = {
     "SCHEDULE": ft.Icons.SCHEDULE,
     "CHECK_CIRCLE": ft.Icons.CHECK_CIRCLE,
     "CANCEL": ft.Icons.CANCEL,
+    "ERROR_OUTLINE": ft.Icons.ERROR_OUTLINE,
 }
 
 

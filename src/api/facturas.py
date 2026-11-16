@@ -171,6 +171,10 @@ class FacturaDetalle:
     # que este comprobante corrige. Se usa en el detalle para armar el link
     # "Corrige a factura origen".
     factura_referencia_id: Optional[str] = None
+    # Calculado por el backend (ADR-055/056). El cliente no replica la regla;
+    # si la clave no viene (backend sin T-004) vale False y no se muestra
+    # el botón de reenvío.
+    reenviable: bool = False
 
 
 def _factura_detalle_desde(datos: dict) -> FacturaDetalle:
@@ -199,6 +203,7 @@ def _factura_detalle_desde(datos: dict) -> FacturaDetalle:
         ultimo_resultado_consulta=datos.get("ultimoResultadoConsulta"),
         intentos_envio=datos.get("intentosEnvio"),
         factura_referencia_id=datos.get("facturaReferenciaId"),
+        reenviable=datos.get("reenviable") is True,
     )
 
 

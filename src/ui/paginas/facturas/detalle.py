@@ -1,3 +1,5 @@
+from typing import Optional
+
 import flet as ft
 
 import catalogos
@@ -22,10 +24,23 @@ from ui.componentes.shell_protegido import construir_vista_protegida
 
 
 def _puede_reenviar(factura: FacturaDetalle) -> bool:
-    return (
-        factura.estado == "ENVIADO"
-        and factura.ultimo_resultado_consulta == "ERROR_COMUNICACION"
-    )
+    # El backend calcula `reenviable` (ADR-055/056); el cliente no replica la regla.
+    return factura.reenviable
+
+
+MENSAJE_ERROR_SIN_DETALLE = (
+    "El reenvío no se completó y la factura sigue en error. Intente de nuevo más tarde."
+)
+
+
+def mensajes_tras_reenvio(resultado) -> tuple[Optional[str], Optional[str]]:
+    """Devuelve (texto_error, texto_info) para mostrar tras un reenvío."""
+    if isinstance(resultado, ApiFallo):
+        return resultado.error.mensaje, None
+    factura = resultado.datos
+    if factura is not None and factura.estado == "ERROR":
+        return None, factura.mensaje_respuesta or MENSAJE_ERROR_SIN_DETALLE
+    return None, None
 
 
 def _puede_emitir_nota_credito_o_debito(factura: FacturaDetalle) -> bool:
@@ -40,6 +55,7 @@ def vista_facturas_detalle(page: ft.Page) -> ft.View:
 
     texto_estado = ft.Text("Cargando...", theme_style=ft.TextThemeStyle.BODY_SMALL)
     texto_error = ft.Text(value="", color=tokens.ESTADO_RECHAZADO, visible=False)
+    texto_info = ft.Text(value="", color=tokens.ESTADO_ERROR_COMUNICACION, visible=False)
     contenedor_encabezado = ft.Column(visible=False)
     contenedor_contenido = ft.Column(visible=False, spacing=20)
 
@@ -128,7 +144,8 @@ def vista_facturas_detalle(page: ft.Page) -> ft.View:
 
         es_error_comunicacion = factura.ultimo_resultado_consulta == "ERROR_COMUNICACION"
         es_rechazado = factura.estado == "RECHAZADO"
-        if es_error_comunicacion or es_rechazado:
+        es_error = factura.estado == "ERROR"
+        if es_error_comunicacion or es_rechazado or es_error:
             controles_aviso = []
             if factura.codigo_respuesta:
                 controles_aviso.append(
@@ -142,7 +159,7 @@ def vista_facturas_detalle(page: ft.Page) -> ft.View:
                 controles_aviso.append(
                     ft.Text(factura.mensaje_respuesta, theme_style=ft.TextThemeStyle.BODY_MEDIUM)
                 )
-            if es_error_comunicacion:
+            if tiene_permiso_reenviar and _puede_reenviar(factura):
                 controles_aviso.append(
                     ft.Text(
                         "Use el botón Reenviar factura para intentar de nuevo.",
@@ -371,16 +388,23 @@ def vista_facturas_detalle(page: ft.Page) -> ft.View:
                 page.update()
 
                 resultado = await reenviar_factura(factura.id)
+                error, info = mensajes_tras_reenvio(resultado)
 
                 if isinstance(resultado, ApiFallo):
                     boton_reenviar.disabled = False
                     boton_reenviar.content = "Reenviar factura"
-                    texto_error.value = resultado.error.mensaje
+                    texto_info.visible = False
+                    texto_error.value = error
                     texto_error.visible = True
                     page.update()
                     return
 
+                texto_error.visible = False
                 await cargar()
+                # Se fija después de recargar para que el mensaje sobreviva.
+                texto_info.value = info or ""
+                texto_info.visible = info is not None
+                page.update()
 
             boton_reenviar.on_click = al_reenviar
             botones_acciones.append(boton_reenviar)
@@ -421,6 +445,7 @@ def vista_facturas_detalle(page: ft.Page) -> ft.View:
             ),
             texto_estado,
             texto_error,
+            texto_info,
             contenedor_encabezado,
             contenedor_contenido,
         ],
